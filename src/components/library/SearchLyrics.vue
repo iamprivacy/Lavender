@@ -95,6 +95,11 @@
                     class="text-neutral-900 dark:text-neutral-200 font-bold text-[0.65rem] bg-neutral-300 dark:bg-neutral-600 rounded px-1 py-0.5"
                     >Instrumental</span
                   >
+                  <span
+                    v-if="result.best"
+                    class="text-white font-bold text-[0.65rem] bg-emerald-600 rounded px-1 py-0.5"
+                    >Best match</span
+                  >
                   <template v-if="result.duration != null">
                     <span
                       v-if="Math.round(result.duration) - Math.round(searchingTrack.duration) > 2"
@@ -166,6 +171,7 @@ import ContentSave from '~icons/mdi/content-save'
 import { useToast } from 'vue-toastification'
 import Preview from './search-lyrics/Preview.vue'
 import { useModal } from 'vue-final-modal'
+import { orderByRank, rankSearchResults } from '@/composables/rank-search-results.js'
 
 const toast = useToast()
 const props = defineProps(['searchingTrack'])
@@ -173,6 +179,7 @@ const emit = defineEmits(['close'])
 
 const loading = ref(true)
 const searchResult = ref([])
+const rankedIds = ref([])
 const previewingLyrics = ref(null)
 const previewingTrack = ref(null)
 const openingLyricsId = ref(null)
@@ -182,7 +189,13 @@ const title = ref('')
 const albumName = ref('')
 const artistName = ref('')
 
-const results = computed(() => (Array.isArray(searchResult.value) ? searchResult.value : []))
+// Lavender: in Local mode the rows a mass download would take come first,
+// the one it would have taken marked Best match (rank-search-results.js).
+const results = computed(() =>
+  orderByRank(Array.isArray(searchResult.value) ? searchResult.value : [], rankedIds.value).map(
+    item => ({ ...item, best: item.id === rankedIds.value[0] })
+  )
+)
 
 const { open: openPreviewModal, close: closePreviewModal } = useModal({
   component: Preview,
@@ -206,6 +219,7 @@ const humanDuration = seconds => {
 const doSearchLyrics = async () => {
   loading.value = true
   lyricsCache.clear()
+  rankedIds.value = []
   try {
     searchResult.value = await invoke('search_lyrics', {
       title: title.value,
@@ -213,6 +227,7 @@ const doSearchLyrics = async () => {
       artistName: artistName.value,
       q: '',
     })
+    rankedIds.value = await rankSearchResults(props.searchingTrack, searchResult.value)
   } catch (error) {
     console.error(error)
     toast.error(error)

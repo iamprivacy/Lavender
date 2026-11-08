@@ -7,6 +7,9 @@ pub mod db;
 pub mod export;
 pub mod library;
 pub mod lrclib;
+pub mod local_db;
+pub mod app_update;
+pub mod download_run;
 pub mod lyricsfile;
 pub mod parser;
 pub mod persistent_entities;
@@ -126,17 +129,17 @@ enum ExportLyricsFormat {
 }
 
 /// Explicit format selection captured when a Download batch is submitted.
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AutoExportOptions {
-    plain_text: bool,
-    synced_lrc: bool,
+pub(crate) struct AutoExportOptions {
+    pub(crate) plain_text: bool,
+    pub(crate) synced_lrc: bool,
     #[serde(default)]
-    embed_into_track: bool,
+    pub(crate) embed_into_track: bool,
 }
 
 impl AutoExportOptions {
-    fn formats(self) -> Result<Vec<export::ExportFormat>, String> {
+    pub(crate) fn formats(self) -> Result<Vec<export::ExportFormat>, String> {
         let mut formats = Vec::new();
         if self.plain_text {
             formats.push(export::ExportFormat::Txt);
@@ -724,25 +727,124 @@ async fn get_artist_track_ids(
 async fn download_lyrics(
     track_id: i64,
     auto_export: Option<AutoExportOptions>,
+    upgrade: Option<bool>,
     app_handle: AppHandle,
 ) -> Result<String, DownloadLyricsError> {
-    let export_formats = auto_export.map(AutoExportOptions::formats).transpose()?;
-    let track = app_handle
-        .db(|db| db::get_track_by_id(track_id, db))
-        .map_err(|err| err.to_string())?;
-    let config = app_handle
-        .db(|db| db::get_config(db))
-        .map_err(|err| err.to_string())?;
-    let lrclib_response = lrclib::get::request_raw(
-        &track.title,
-        &track.album_name,
-        &track.artist_name,
-        track.duration,
-        &config.lrclib_instance,
-        RetryPolicy::Batch,
-    )
-    .await?;
-    let resolved = resolve_lrclib_lyrics_payload(lrclib_response)?;
+    download_track(&app_handle, track_id, auto_export, upgrade.unwrap_or(false))
+        .await
+        .map_err(download_lyrics_error)
+}
+
+/// Lavender: `download_track` answers with an `anyhow::Error` (local
+/// database, extra sources and LRCLIB alike); the command still hands the
+/// frontend upstream's structured error. An LRCLIB error keeps its kind and
+/// `Retry-After`, a miss reads as not found, anything else is internal.
+fn download_lyrics_error(error: anyhow::Error) -> DownloadLyricsError {
+    let inner = local_db::source::underlying(&error);
+    if let Some(lrclib_error) = inner.chain().find_map(|cause| cause.downcast_ref::<LrclibError>()) {
+        return DownloadLyricsError::from_lrclib_error(lrclib_error.clone());
+    }
+    let message = error.to_string();
+    let local_miss = matches!(
+        inner.downcast_ref::<local_db::LocalDbError>(),
+        Some(local_db::LocalDbError::NotFound)
+    );
+    if local_miss || message == LRCLIB_TRACK_NOT_FOUND {
+        return DownloadLyricsError::not_found(message);
+    }
+    DownloadLyricsError::from(message)
+}
+
+/// The lookup, save and export of one track: the body of `download_lyrics`,
+/// shared with the backend-owned mass download (`download_run`), which
+/// needs the error itself to tell a lost connection from a miss.
+pub(crate) async fn download_track(
+    app_handle: &AppHandle,
+    track_id: i64,
+    auto_export: Option<AutoExportOptions>,
+    upgrade: bool,
+) -> anyhow::Result<String> {
+    let export_formats = auto_export
+        .map(AutoExportOptions::formats)
+        .transpose()
+        .map_err(anyhow::Error::msg)?;
+    let track = app_handle.db(|db| db::get_track_by_id(track_id, db))?;
+    let config = app_handle.db(|db| db::get_config(db))?;
+    // The Upgrade download replaces stored lyrics only with something
+    // better, and says so in its own words; a kept track is logged, not saved.
+    let mut upgrade_message = None;
+    let outcome = if upgrade {
+        match local_db::upgrade::lookup(app_handle, &track, &config.lrclib_instance).await {
+            // A kept track gets its stored lyrics exported where no file is
+            // next to the music yet, so Upgrade with auto-export fills in
+            // the files for the whole library (see `kept_export`). A file
+            // that is there stays as it is (it may hold the user's own
+            // edits), and the audio file is never rewritten for lyrics that
+            // did not change.
+            Ok(local_db::upgrade::Upgrade::Keep(kept)) => {
+                let message = match (&export_formats, &track.lyricsfile) {
+                    (Some(formats), Some(content)) => {
+                        kept_export_message(kept.message, &track, content, formats, || {
+                            embedding_allowed(app_handle)
+                        })
+                    }
+                    _ => kept.message,
+                };
+                // A settled keep is remembered, so the next Upgrade run
+                // leaves the track out until its lyrics, tags, database or
+                // settings change; one whose files could not be written (or
+                // whose stray .txt could not be removed) is not, so the run
+                // that fixes the files writes them. A format the export
+                // skipped (embedding turned off meanwhile) is not recorded
+                // as written, so a run that asks for it looks again.
+                if kept.settled && !message.contains("export failed") && !message.contains("removal failed") {
+                    let written: Vec<export::ExportFormat> = export_formats
+                        .as_deref()
+                        .unwrap_or(&[])
+                        .iter()
+                        .copied()
+                        .filter(|format| !message.contains(&format!("{} export skipped", export_label(*format))))
+                        .collect();
+                    local_db::attempts::note_upgrade_kept(app_handle, &track, &written);
+                }
+                return Ok(message);
+            }
+            Ok(local_db::upgrade::Upgrade::Save(saved)) => {
+                // The lookup took a while; lyrics saved from the editor or
+                // the search dialog meanwhile are the user's and stay.
+                let now = app_handle.db(|db| db::get_track_by_id(track_id, db))?;
+                if now.lyricsfile != track.lyricsfile
+                    || now.txt_lyrics != track.txt_lyrics
+                    || now.lrc_lyrics != track.lrc_lyrics
+                {
+                    return Ok("Kept, the lyrics were changed while the upgrade was looking".to_owned());
+                }
+                local_db::attempts::forget_upgrade(app_handle, track.id);
+                upgrade_message = saved.message;
+                Ok(saved.outcome)
+            }
+            Err(error) => Err(error),
+        }
+    } else {
+        let outcome = local_db::source::get_raw_noted(
+            app_handle,
+            &track.title,
+            &track.album_name,
+            &track.artist_name,
+            track.album_artist_name.as_deref(),
+            track.duration,
+            &config.lrclib_instance,
+            RetryPolicy::Batch,
+        )
+        .await;
+        // Extra sources (off by default) answer only when LRCLIB found nothing.
+        let outcome = local_db::extra::after_lrclib(app_handle, &track, outcome).await;
+        // Local mode remembers misses so the next mass download can skip them.
+        local_db::attempts::note_outcome(app_handle, &track, &outcome);
+        outcome
+    };
+    let (lrclib_response, match_note) = outcome?;
+    let resolved = resolve_lrclib_lyrics_payload(lrclib_response).map_err(anyhow::Error::msg)?;
 
     let message = if resolved.is_instrumental {
         "Marked track as instrumental"
@@ -751,10 +853,15 @@ async fn download_lyrics(
     } else if !resolved.plain_lyrics.is_empty() {
         "Plain lyrics downloaded"
     } else {
-        return Err(DownloadLyricsError::not_found(
-            LRCLIB_TRACK_NOT_FOUND.to_owned(),
-        ));
+        anyhow::bail!("{LRCLIB_TRACK_NOT_FOUND}");
     };
+    let message = upgrade_message.unwrap_or(message);
+    // A tolerant local match or an extra source says so in the log, so it can be spot-checked.
+    let message = match match_note {
+        Some(note) => format!("{message} ({})", note.text()),
+        None => message.to_owned(),
+    };
+    let message = message.as_str();
 
     // Build lyricsfile content from the resolved response
     let lyricsfile_content = if let Some(ref provided) = resolved.provided_lyricsfile {
@@ -771,33 +878,40 @@ async fn download_lyrics(
             Some(&resolved.plain_lyrics),
             Some(&resolved.synced_lyrics),
         )
-        .ok_or_else(|| "Failed to build lyricsfile")?
+        .ok_or_else(|| anyhow::anyhow!("Failed to build lyricsfile"))?
     };
 
     // Upsert the lyricsfile record (handles presence fields automatically)
-    app_handle
-        .db(|db: &Connection| {
-            db::upsert_lyricsfile_for_track(
-                track.id,
-                &track.title,
-                &track.album_name,
-                &track.artist_name,
-                track.duration,
-                &lyricsfile_content,
-                db,
-            )
-        })
-        .map_err(|err| err.to_string())?;
+    app_handle.db(|db: &Connection| {
+        db::upsert_lyricsfile_for_track(
+            track.id,
+            &track.title,
+            &track.album_name,
+            &track.artist_name,
+            track.duration,
+            &lyricsfile_content,
+            db,
+        )
+    })?;
 
     let _ = app_handle.emit("reload-track-id", track_id);
 
     // Internal save has succeeded: export errors remain part of the success log string.
     Ok(match export_formats {
         Some(formats) => download_export_message(message, &track, &lyricsfile_content, &formats, || {
-            embedding_allowed(&app_handle)
+            embedding_allowed(app_handle)
         }),
         None => message.to_owned(),
     })
+}
+
+/// The name an export outcome carries in the download log.
+fn export_label(format: export::ExportFormat) -> &'static str {
+    match format {
+        export::ExportFormat::Txt => "TXT",
+        export::ExportFormat::Lrc => "LRC",
+        export::ExportFormat::Embedded => "Embedded",
+    }
 }
 
 fn download_export_message(
@@ -812,12 +926,8 @@ fn download_export_message(
         Err(err) => return format!("{message}; export failed: {err}"),
     };
     let mut message = message.to_owned();
-    for result in export::export_track_with_embed_gate(track, &parsed, formats, embed_allowed) {
-        let format = match result.format {
-            export::ExportFormat::Txt => "TXT",
-            export::ExportFormat::Lrc => "LRC",
-            export::ExportFormat::Embedded => "Embedded",
-        };
+    for result in local_db::word_sync::export::export_track(track, &parsed, content, formats, embed_allowed) {
+        let format = export_label(result.format);
         let outcome = match result.status {
             export::ExportStatus::Success => "export completed".to_owned(),
             export::ExportStatus::Skipped(reason) => format!("export skipped: {reason}"),
@@ -826,6 +936,77 @@ fn download_export_message(
         message.push_str(&format!("; {format} {outcome}"));
     }
     message
+}
+
+/// What auto-export does for a track whose stored lyrics an upgrade kept.
+/// A track has one lyrics file next to it, the .lrc or the .txt, and writing
+/// either one removes the other. So a file that is there counts for both
+/// formats, and it stays as it is, because it may hold the user's own edits:
+/// - neither file is there: every selected sidecar format is exported, which
+///   leaves the .lrc when synced lyrics are stored and the .txt otherwise;
+/// - only the .txt is there and LRC is selected: the .lrc is exported, which
+///   replaces the .txt when synced lyrics are stored and is skipped otherwise;
+/// - the .lrc is there: nothing is written, and a .txt left beside it is
+///   removed when LRC is selected, since the .lrc already covers it.
+///
+/// Embedding is never exported here: it rewrites the audio file, which an
+/// unchanged track has no reason for.
+#[derive(Debug, PartialEq)]
+struct KeptExport {
+    formats: Vec<export::ExportFormat>,
+    remove_txt: bool,
+}
+
+fn kept_export(track: &PersistentTrack, formats: &[export::ExportFormat]) -> KeptExport {
+    let exists = |extension| {
+        export::build_sidecar_path(&track.file_path, extension)
+            .map(|path| path.exists())
+            .unwrap_or(true)
+    };
+    let (has_lrc, has_txt) = (exists("lrc"), exists("txt"));
+    let lrc_selected = formats.contains(&export::ExportFormat::Lrc);
+    let formats = if !has_lrc && !has_txt {
+        formats
+            .iter()
+            .copied()
+            .filter(|format| *format != export::ExportFormat::Embedded)
+            .collect()
+    } else if !has_lrc && lrc_selected {
+        vec![export::ExportFormat::Lrc]
+    } else {
+        Vec::new()
+    };
+    KeptExport {
+        formats,
+        remove_txt: has_lrc && has_txt && lrc_selected,
+    }
+}
+
+/// The log line for a kept track: its message plus whatever `kept_export`
+/// wrote or removed.
+fn kept_export_message(
+    message: String,
+    track: &PersistentTrack,
+    content: &str,
+    formats: &[export::ExportFormat],
+    embed_allowed: impl FnMut() -> bool,
+) -> String {
+    let plan = kept_export(track, formats);
+    let mut message = message;
+    if plan.remove_txt {
+        let removed = export::build_sidecar_path(&track.file_path, "txt")
+            .map_err(|err| err.to_string())
+            .and_then(|path| std::fs::remove_file(path).map_err(|err| err.to_string()));
+        match removed {
+            Ok(()) => message.push_str("; TXT removed, the LRC next to it covers it"),
+            Err(err) => message.push_str(&format!("; TXT removal failed: {err}")),
+        }
+    }
+    if plan.formats.is_empty() {
+        message
+    } else {
+        download_export_message(&message, track, content, &plan.formats, embed_allowed)
+    }
 }
 
 // Recheck immediately before each embedded write, including after a network download.
@@ -850,7 +1031,8 @@ async fn apply_lyrics(
         .db(|db: &Connection| db::get_config(db))
         .map_err(|err| err.to_string())?;
 
-    let lrclib_response = lrclib::get_by_id::request_raw(
+    let lrclib_response = local_db::source::get_by_id_raw(
+        &app_handle,
         lrclib_id,
         &config.lrclib_instance,
         RetryPolicy::Interactive,
@@ -920,7 +1102,8 @@ async fn retrieve_lyrics(
         .db(|db: &Connection| db::get_config(db))
         .map_err(|err| err.to_string())?;
 
-    let response = lrclib::get::request_raw(
+    let response = local_db::source::get_raw(
+        &app_handle,
         &title,
         &album_name,
         &artist_name,
@@ -943,10 +1126,14 @@ async fn retrieve_lyrics_by_id(
         .db(|db: &Connection| db::get_config(db))
         .map_err(|err| err.to_string())?;
 
-    let response =
-        lrclib::get_by_id::request_raw(id, &config.lrclib_instance, RetryPolicy::Interactive)
-            .await
-            .map_err(|err| err.to_string())?;
+    let response = local_db::source::get_by_id_raw(
+        &app_handle,
+        id,
+        &config.lrclib_instance,
+        RetryPolicy::Interactive,
+    )
+        .await
+        .map_err(|err| err.to_string())?;
 
     Ok(response)
 }
@@ -962,7 +1149,8 @@ async fn search_lyrics(
     let config = app_handle
         .db(|db: &Connection| db::get_config(db))
         .map_err(|err| err.to_string())?;
-    let response = lrclib::search::request(
+    let response = local_db::source::search(
+        &app_handle,
         &title,
         &album_name,
         &artist_name,
@@ -1020,10 +1208,14 @@ async fn prepare_lrclib_lyricsfile(
     }
 
     // Fetch from LRCLIB API
-    let lrclib_response =
-        lrclib::get_by_id::request_raw(lrclib_id, &lrclib_instance, RetryPolicy::Interactive)
-            .await
-            .map_err(|err| err.to_string())?;
+    let lrclib_response = local_db::source::get_by_id_raw(
+        &app_handle,
+        lrclib_id,
+        &lrclib_instance,
+        RetryPolicy::Interactive,
+    )
+        .await
+        .map_err(|err| err.to_string())?;
 
     // Extract metadata from LRCLIB response
     let title = lrclib_response.name.unwrap_or_default();
@@ -1089,10 +1281,14 @@ async fn refresh_lrclib_lyricsfile(
     let lrclib_instance = config.lrclib_instance;
 
     // Fetch fresh data from LRCLIB API (always re-download)
-    let lrclib_response =
-        lrclib::get_by_id::request_raw(lrclib_id, &lrclib_instance, RetryPolicy::Interactive)
-            .await
-            .map_err(|err| err.to_string())?;
+    let lrclib_response = local_db::source::get_by_id_raw(
+        &app_handle,
+        lrclib_id,
+        &lrclib_instance,
+        RetryPolicy::Interactive,
+    )
+        .await
+        .map_err(|err| err.to_string())?;
 
     // Extract metadata from LRCLIB response
     let title = lrclib_response.name.unwrap_or_default();
@@ -1471,7 +1667,7 @@ async fn export_lyrics(
         lyricsfile::parse_lyricsfile(&lyricsfile_content).map_err(|err| err.to_string())?;
     let export_formats = formats.into_iter().map(Into::into).collect::<Vec<_>>();
 
-    Ok(export::export_track_with_embed_gate(&track, &parsed, &export_formats, || {
+    Ok(local_db::word_sync::export::export_track(&track, &parsed, &lyricsfile_content, &export_formats, || {
         embedding_allowed(&app_handle)
     }))
 }
@@ -1726,6 +1922,7 @@ async fn main() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(app_update::plugin())
         .manage(AppState {
             db: Default::default(),
             player: Default::default(),
@@ -1789,6 +1986,42 @@ async fn main() {
             refresh_lrclib_lyricsfile,
             read_text_file,
             segment_words,
+            local_db::commands::get_fork_config,
+            local_db::commands::set_fork_config,
+            local_db::commands::validate_local_db,
+            local_db::commands::get_local_db_status,
+            local_db::commands::count_local_db_rows,
+            local_db::commands::check_local_db_space,
+            local_db::commands::start_local_db_decompress,
+            local_db::commands::cancel_local_db_decompress,
+            local_db::commands::get_local_db_decompress_status,
+            local_db::commands::filter_checked_track_ids,
+            local_db::commands::get_checked_count,
+            local_db::commands::clear_checked_tracks,
+            local_db::commands::check_dump_updates,
+            local_db::commands::check_update_space,
+            local_db::commands::start_local_db_update,
+            local_db::commands::pause_local_db_update,
+            local_db::commands::discard_local_db_update,
+            local_db::commands::get_local_db_update_status,
+            local_db::commands::rank_search_results,
+            local_db::commands::check_apple_token,
+            local_db::commands::apple_sign_in,
+            download_run::start_download_run,
+            download_run::get_download_run,
+            download_run::pause_download_run,
+            download_run::resume_download_run,
+            download_run::retry_failed_downloads,
+            download_run::clear_download_run,
+            app_update::commands::get_app_update_info,
+            app_update::commands::check_app_update,
+            app_update::commands::startup_app_update_check,
+            app_update::commands::set_app_update_prefs,
+            app_update::commands::resolve_app_update_opt_in,
+            app_update::commands::dismiss_app_update,
+            app_update::commands::install_app_update,
+            app_update::commands::cancel_app_update_install,
+            app_update::commands::restart_for_app_update,
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -1796,6 +2029,9 @@ async fn main() {
             let app_state: State<AppState> = handle.state();
             let db = db::initialize_database(&handle).expect("Database initialize should succeed");
             *app_state.db.lock().unwrap() = Some(db);
+            local_db::init(&handle);
+            download_run::init(&handle);
+            app_update::init(&handle);
 
             // Load config to get initial volume
             let initial_volume = handle
@@ -1803,20 +2039,33 @@ async fn main() {
                 .map(|config| config.volume)
                 .unwrap_or(1.0);
 
-            let maybe_player = Player::new(initial_volume);
-            match maybe_player {
-                Ok(player) => {
-                    *app_state.player.lock().unwrap() = Some(player);
+            // The window already exists while setup runs, and it cannot load
+            // its page until setup returns. The slow start-up work (the
+            // lyrics presence backfill, opening the audio device) runs on its
+            // own thread so the window paints the splash straight away;
+            // commands that need the database wait for its lock meanwhile.
+            let startup_handle = handle.clone();
+            std::thread::spawn(move || {
+                if let Err(error) = startup_handle.db(|db| db::backfill_track_lyrics_presence(db)) {
+                    eprintln!("Failed to backfill track lyrics presence flags: {}", error);
                 }
-                Err(e) => {
-                    eprintln!("Failed to initialize audio player: {}", e);
-                    let mut buf = app_state.queued_notifications.lock().unwrap();
-                    buf.push(Notify {
-                        message: format!("Failed to initialize audio player: {}", e),
-                        notify_type: NotifyType::Error,
-                    });
+
+                let app_state: State<AppState> = startup_handle.state();
+                let maybe_player = Player::new(initial_volume);
+                match maybe_player {
+                    Ok(player) => {
+                        *app_state.player.lock().unwrap() = Some(player);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize audio player: {}", e);
+                        let mut buf = app_state.queued_notifications.lock().unwrap();
+                        buf.push(Notify {
+                            message: format!("Failed to initialize audio player: {}", e),
+                            notify_type: NotifyType::Error,
+                        });
+                    }
                 }
-            }
+            });
 
             let handle_clone = handle.clone();
 
@@ -1997,6 +2246,94 @@ mod auto_export_tests {
                 export::ExportFormat::Embedded
             ],
         );
+    }
+
+    #[test]
+    fn a_kept_track_keeps_the_one_lyrics_file_next_to_it() {
+        use export::ExportFormat::{Embedded, Lrc, Txt};
+        let directory =
+            std::env::temp_dir().join(format!("lrcget-kept-export-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let track = test_track(&directory.join("song.flac"));
+        let both = [Txt, Lrc, Embedded];
+        let plan = |formats: &[export::ExportFormat]| kept_export(&track, formats);
+        assert_eq!(
+            plan(&both),
+            KeptExport { formats: vec![Txt, Lrc], remove_txt: false },
+            "no file yet: both sidecars are written in order; the audio file is never rewritten"
+        );
+        assert_eq!(plan(&[Txt]), KeptExport { formats: vec![Txt], remove_txt: false });
+
+        std::fs::write(directory.join("song.txt"), "words").unwrap();
+        assert_eq!(
+            plan(&both),
+            KeptExport { formats: vec![Lrc], remove_txt: false },
+            "only a .txt: the .lrc replaces it when synced lyrics are stored, else it stays"
+        );
+        assert_eq!(plan(&[Txt]), KeptExport { formats: vec![], remove_txt: false });
+
+        std::fs::write(directory.join("song.lrc"), "the user's own edit").unwrap();
+        assert_eq!(
+            plan(&both),
+            KeptExport { formats: vec![], remove_txt: true },
+            "both files: the .lrc stays untouched and the stray .txt goes"
+        );
+        assert_eq!(plan(&[Txt]), KeptExport { formats: vec![], remove_txt: false });
+
+        std::fs::remove_file(directory.join("song.txt")).unwrap();
+        assert_eq!(
+            plan(&both),
+            KeptExport { formats: vec![], remove_txt: false },
+            "only the .lrc: nothing is written, so no .txt ever replaces it"
+        );
+        assert_eq!(plan(&[Txt]), KeptExport { formats: vec![], remove_txt: false });
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn a_kept_track_with_both_files_ends_up_with_the_lrc_alone() {
+        let directory =
+            std::env::temp_dir().join(format!("lrcget-kept-both-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let track = test_track(&directory.join("song.flac"));
+        let formats = [export::ExportFormat::Txt, export::ExportFormat::Lrc];
+        let synced = lyricsfile::build_lyricsfile(
+            &lyricsfile::LyricsfileTrackMetadata::new("Song", "Album", "Artist", 100.0),
+            Some("hello"),
+            Some("[00:01.00] hello"),
+        )
+        .unwrap();
+        std::fs::write(directory.join("song.lrc"), "the user's own edit").unwrap();
+        std::fs::write(directory.join("song.txt"), "stray words").unwrap();
+        let message = kept_export_message("Kept".to_owned(), &track, &synced, &formats, || true);
+        assert_eq!(message, "Kept; TXT removed, the LRC next to it covers it");
+        assert!(!directory.join("song.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(directory.join("song.lrc")).unwrap(),
+            "the user's own edit"
+        );
+
+        // Only a .txt next to synced lyrics: the .lrc takes its place.
+        std::fs::remove_file(directory.join("song.lrc")).unwrap();
+        std::fs::write(directory.join("song.txt"), "stray words").unwrap();
+        let message = kept_export_message("Kept".to_owned(), &track, &synced, &formats, || true);
+        assert_eq!(message, "Kept; LRC export completed");
+        assert!(!directory.join("song.txt").exists());
+        assert!(directory.join("song.lrc").exists());
+
+        // Only a .txt next to plain lyrics: it stays, there is nothing to replace it with.
+        let plain = lyricsfile::build_lyricsfile(
+            &lyricsfile::LyricsfileTrackMetadata::new("Song", "Album", "Artist", 100.0),
+            Some("plain only"),
+            None,
+        )
+        .unwrap();
+        std::fs::remove_file(directory.join("song.lrc")).unwrap();
+        std::fs::write(directory.join("song.txt"), "my words").unwrap();
+        let message = kept_export_message("Kept".to_owned(), &track, &plain, &formats, || true);
+        assert_eq!(message, "Kept; LRC export skipped: no synced lyrics available");
+        assert_eq!(std::fs::read_to_string(directory.join("song.txt")).unwrap(), "my words");
+        let _ = std::fs::remove_dir_all(&directory);
     }
 
     #[test]

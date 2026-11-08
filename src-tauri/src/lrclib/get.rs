@@ -10,17 +10,17 @@ pub struct RawResponse {
     pub plain_lyrics: Option<String>,
     pub synced_lyrics: Option<String>,
     pub lyricsfile: Option<String>,
-    instrumental: bool,
+    pub instrumental: bool,
     #[serde(default)]
     pub has_word_sync: bool,
-    lang: Option<String>,
-    isrc: Option<String>,
-    spotify_id: Option<String>,
-    name: Option<String>,
-    album_name: Option<String>,
-    artist_name: Option<String>,
-    release_date: Option<String>,
-    duration: Option<f64>,
+    pub lang: Option<String>,
+    pub isrc: Option<String>,
+    pub spotify_id: Option<String>,
+    pub name: Option<String>,
+    pub album_name: Option<String>,
+    pub artist_name: Option<String>,
+    pub release_date: Option<String>,
+    pub duration: Option<f64>,
 }
 
 impl From<crate::lrclib::get_by_id::RawResponse> for RawResponse {

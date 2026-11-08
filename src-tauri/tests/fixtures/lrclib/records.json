@@ -1,0 +1,536 @@
+{
+ "tracks": [
+  {
+   "id": 1,
+   "name": "Café Del Mar",
+   "artist_name": "Energy 52",
+   "album_name": "Café Del Mar",
+   "duration": 352.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Shining Star",
+   "artist_name": "Alpha feat. Beta",
+   "album_name": "Collaborations",
+   "duration": 201.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Shining Star",
+   "artist_name": "Alpha",
+   "album_name": "Solo",
+   "duration": 204.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song, revised\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.20] First line of the song, revised\n[00:05.70] Second line of the song\n[00:10.10] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Sunrise Interlude",
+   "artist_name": "The Quiet Ones",
+   "album_name": "Dawn",
+   "duration": 95.0,
+   "lyrics": [
+    {
+     "plain_lyrics": null,
+     "synced_lyrics": null,
+     "instrumental": true,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Spoken Word",
+   "artist_name": "Narrator",
+   "album_name": "Readings",
+   "duration": 130.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "Just some plain words\nOn two lines\n",
+     "synced_lyrics": null,
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Synced Only",
+   "artist_name": "Timing Crew",
+   "album_name": "Clocks",
+   "duration": 180.0,
+   "lyrics": [
+    {
+     "plain_lyrics": null,
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "Two Versions",
+   "artist_name": "Editors",
+   "album_name": "Revisions",
+   "duration": 240.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "first"
+    },
+    {
+     "plain_lyrics": "First line of the song, revised\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.20] First line of the song, revised\n[00:05.70] Second line of the song\n[00:10.10] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "second"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Empty Track",
+   "artist_name": "Nobody",
+   "album_name": "Nothing",
+   "duration": 60.0,
+   "lyrics": []
+  },
+  {
+   "id": 9,
+   "name": "Same Song",
+   "artist_name": "Twins",
+   "album_name": "Studio Album",
+   "duration": 200.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "Studio version\n",
+     "synced_lyrics": "[00:01.00] Studio version\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "name": "Same Song",
+   "artist_name": "Twins",
+   "album_name": "Live Album",
+   "duration": 205.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "Live version\n",
+     "synced_lyrics": "[00:01.00] Live version\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "name": "Don't Stop (Radio Edit) [Remastered]",
+   "artist_name": "The Band's Name",
+   "album_name": "Hits & Misses",
+   "duration": 215.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "name": "夜に駆ける",
+   "artist_name": "YOASOBI",
+   "album_name": "THE BOOK",
+   "duration": 262.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "夜に駆ける\n",
+     "synced_lyrics": "[00:01.00] 夜に駆ける\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "name": "Word Timed",
+   "artist_name": "Precision",
+   "album_name": "Grid",
+   "duration": 150.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "Hello world\n",
+     "synced_lyrics": "[00:01.00] Hello world\n",
+     "instrumental": false,
+     "lyricsfile": "version: '1.0'\nmetadata:\n  title: Word Timed\n  artist: Precision\n  album: Grid\n  duration_ms: 150000\n  instrumental: false\nlines:\n  - text: Hello world\n    start_ms: 1000\n    words:\n      - text: 'Hello '\n        start_ms: 1000\n      - text: world\n        start_ms: 1500\n",
+     "has_word_sync": true,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "name": "No Album",
+   "artist_name": "Loner",
+   "album_name": "",
+   "duration": 100.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "No album here\n",
+     "synced_lyrics": "[00:01.00] No album here\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "name": "Midnight Train",
+   "artist_name": "Rail Riders",
+   "album_name": "Stations",
+   "duration": 190.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "Midnight train\n",
+     "synced_lyrics": "[00:01.00] Midnight train\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "name": "Midnight Sun",
+   "artist_name": "Polar Lights",
+   "album_name": "North",
+   "duration": 210.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "Midnight sun\n",
+     "synced_lyrics": "[00:01.00] Midnight sun\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "name": "Train Song",
+   "artist_name": "Midnight Club",
+   "album_name": "Late",
+   "duration": 175.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "Train song\n",
+     "synced_lyrics": "[00:01.00] Train song\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 18,
+   "name": "Embraceable You",
+   "artist_name": "Frank Sinatra",
+   "album_name": "Songs for Young Lovers",
+   "duration": 204.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 19,
+   "name": "Embraceable You",
+   "artist_name": "Frank Sinatra",
+   "album_name": "The Capitol Years",
+   "duration": 204.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": null,
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 20,
+   "name": "Down",
+   "artist_name": "Betraying the Martyrs",
+   "album_name": "Rapture",
+   "duration": 207.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "name": "Lost for Words (Explicit)",
+   "artist_name": "Betraying the Martyrs",
+   "album_name": "Rapture (Explicit)",
+   "duration": 230.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "name": "Mrs. Robinson",
+   "artist_name": "Simon & Garfunkel",
+   "album_name": "Bookends",
+   "duration": 244.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 23,
+   "name": "Mrs. Robinson",
+   "artist_name": "Simon",
+   "album_name": "Covers",
+   "duration": 244.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": null,
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 24,
+   "name": "Sunrise Interlude",
+   "artist_name": "The Quiet Ones",
+   "album_name": "Dawn (Live)",
+   "duration": 96.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 25,
+   "name": "(What's the Story) Morning Glory?",
+   "artist_name": "Oasis",
+   "album_name": "(What's the Story) Morning Glory?",
+   "duration": 300.0,
+   "lyrics": [
+    {
+     "plain_lyrics": "First line of the song\nSecond line of the song\nThird line\n",
+     "synced_lyrics": "[00:01.00] First line of the song\n[00:05.50] Second line of the song\n[00:10.00] Third line\n",
+     "instrumental": false,
+     "lyricsfile": null,
+     "has_word_sync": false,
+     "source": "fixture"
+    }
+   ]
+  },
+  {
+   "id": 19080,
+   "name": "Bohemian Rhapsody",
+   "artist_name": "Queen",
+   "album_name": "A Night at the Opera",
+   "duration": 355.0,
+   "real": true,
+   "lyrics": [
+    {
+     "plain_lyrics": "Is this the real life? Is this just fantasy?\nCaught in a landslide, no escape from reality\nOpen your eyes, look up to the skies and see\nI'm just a poor boy, I need no sympathy\nBecause I'm easy come, easy go, little high, little low\nAny way the wind blows doesn't really matter to me, to me\n\nMama, just killed a man\nPut a gun against his head, pulled my trigger, now he's dead\nMama, life had just begun\nBut now I've gone and thrown it all away\nMama, ooh, didn't mean to make you cry\nIf I'm not back again this time tomorrow\nCarry on, carry on as if nothing really matters\n\nToo late, my time has come\nSends shivers down my spine, body's aching all the time\nGoodbye, everybody, I've got to go\nGotta leave you all behind and face the truth\nMama, ooh (any way the wind blows)\nI don't wanna die\nI sometimes wish I'd never been born at all\n\nI see a little silhouetto of a man\nScaramouche, Scaramouche, will you do the Fandango?\nThunderbolt and lightning, very, very frightening me\n(Galileo) Galileo, (Galileo) Galileo, Galileo Figaro, magnifico\nBut I'm just a poor boy, nobody loves me\nHe's just a poor boy from a poor family\nSpare him his life from this monstrosity\n\nEasy come, easy go, will you let me go?\nبِسْمِ ٱللَّٰهِ\nNo, we will not let you go (let him go)\nبِسْمِ ٱللَّٰهِ\nWe will not let you go (let him go)\nبِسْمِ ٱللَّٰهِ\nWe will not let you go (let me go)\nWill not let you go (let me go)\nNever, never, never, never let me go\nNo, no, no, no, no, no, no\n\nOh, mamma mia, mamma mia\nMamma mia, let me go\nBeelzebub has a devil put aside for me, for me, for me\n\nSo you think you can stone me and spit in my eye?\nSo you think you can love me and leave me to die?\nOh, baby, can't do this to me, baby\nJust gotta get out, just gotta get right outta here\n\nOoh\nOoh, yeah, ooh, yeah\n\nNothing really matters, anyone can see\nNothing really matters\nNothing really matters to me\n\n(Any way the wind blows)",
+     "synced_lyrics": "[00:00.15] Is this the real life? Is this just fantasy?\n[00:07.13] Caught in a landslide, no escape from reality\n[00:14.77] Open your eyes, look up to the skies and see\n[00:25.37] I'm just a poor boy, I need no sympathy\n[00:30.75] Because I'm easy come, easy go, little high, little low\n[00:38.77] Any way the wind blows doesn't really matter to me, to me\n[00:55.36] Mama, just killed a man\n[01:01.95] Put a gun against his head, pulled my trigger, now he's dead\n[01:08.56] Mama, life had just begun\n[01:15.42] But now I've gone and thrown it all away\n[01:22.49] Mama, ooh, didn't mean to make you cry\n[01:32.53] If I'm not back again this time tomorrow\n[01:36.95] Carry on, carry on as if nothing really matters\n[01:54.94] Too late, my time has come\n[02:01.18] Sends shivers down my spine, body's aching all the time\n[02:08.33] Goodbye, everybody, I've got to go\n[02:14.73] Gotta leave you all behind and face the truth\n[02:21.95] Mama, ooh (any way the wind blows)\n[02:28.80] I don't wanna die\n[02:31.98] I sometimes wish I'd never been born at all\n[02:35.66] \n[02:39.85] \n[03:05.97] I see a little silhouetto of a man\n[03:08.63] Scaramouche, Scaramouche, will you do the Fandango?\n[03:12.43] Thunderbolt and lightning, very, very frightening me\n[03:16.02] (Galileo) Galileo, (Galileo) Galileo, Galileo Figaro, magnifico\n[03:22.21] But I'm just a poor boy, nobody loves me\n[03:25.69] He's just a poor boy from a poor family\n[03:28.62] Spare him his life from this monstrosity\n[03:33.93] Easy come, easy go, will you let me go?\n[03:36.78] بِسْمِ ٱللَّٰهِ\n[03:37.85] No, we will not let you go (let him go)\n[03:40.52] بِسْمِ ٱللَّٰهِ\n[03:41.63] We will not let you go (let him go)\n[03:43.58] بِسْمِ ٱللَّٰهِ\n[03:44.90] We will not let you go (let me go)\n[03:46.91] Will not let you go (let me go)\n[03:47.83] Never, never, never, never let me go\n[03:51.47] No, no, no, no, no, no, no\n[03:53.97] Oh, mamma mia, mamma mia\n[03:55.89] Mamma mia, let me go\n[03:57.42] Beelzebub has a devil put aside for me, for me, for me\n[04:14.98] So you think you can stone me and spit in my eye?\n[04:20.98] So you think you can love me and leave me to die?\n[04:25.86] Oh, baby, can't do this to me, baby\n[04:32.84] Just gotta get out, just gotta get right outta here\n[04:41.15] \n[04:55.03] Ooh\n[05:00.05] Ooh, yeah, ooh, yeah\n[05:04.75] \n[05:11.78] Nothing really matters, anyone can see\n[05:18.66] Nothing really matters\n[05:22.39] Nothing really matters to me\n[05:31.94] \n[05:42.78] (Any way the wind blows)\n[05:49.14] ",
+     "instrumental": false,
+     "lyricsfile": "version: '1.0'\nmetadata:\n  title: Bohemian Rhapsody\n  artist: Queen\n  album: A Night at the Opera\n  duration_ms: 355000\n  instrumental: false\nlines:\n- text: Is this the real life? Is this just fantasy?\n  start_ms: 150\n  end_ms: 7130\n- text: Caught in a landslide, no escape from reality\n  start_ms: 7130\n  end_ms: 14770\n- text: Open your eyes, look up to the skies and see\n  start_ms: 14770\n  end_ms: 25370\n- text: I'm just a poor boy, I need no sympathy\n  start_ms: 25370\n  end_ms: 30750\n- text: Because I'm easy come, easy go, little high, little low\n  start_ms: 30750\n  end_ms: 38770\n- text: Any way the wind blows doesn't really matter to me, to me\n  start_ms: 38770\n  end_ms: 55360\n- text: Mama, just killed a man\n  start_ms: 55360\n  end_ms: 61950\n- text: Put a gun against his head, pulled my trigger, now he's dead\n  start_ms: 61950\n  end_ms: 68560\n- text: Mama, life had just begun\n  start_ms: 68560\n  end_ms: 75420\n- text: But now I've gone and thrown it all away\n  start_ms: 75420\n  end_ms: 82490\n- text: Mama, ooh, didn't mean to make you cry\n  start_ms: 82490\n  end_ms: 92530\n- text: If I'm not back again this time tomorrow\n  start_ms: 92530\n  end_ms: 96950\n- text: Carry on, carry on as if nothing really matters\n  start_ms: 96950\n  end_ms: 114940\n- text: Too late, my time has come\n  start_ms: 114940\n  end_ms: 121180\n- text: Sends shivers down my spine, body's aching all the time\n  start_ms: 121180\n  end_ms: 128330\n- text: Goodbye, everybody, I've got to go\n  start_ms: 128330\n  end_ms: 134730\n- text: Gotta leave you all behind and face the truth\n  start_ms: 134730\n  end_ms: 141950\n- text: Mama, ooh (any way the wind blows)\n  start_ms: 141950\n  end_ms: 148800\n- text: I don't wanna die\n  start_ms: 148800\n  end_ms: 151980\n- text: I sometimes wish I'd never been born at all\n  start_ms: 151980\n  end_ms: 155660\n- text: ''\n  start_ms: 155660\n  end_ms: 159850\n- text: ''\n  start_ms: 159850\n  end_ms: 185970\n- text: I see a little silhouetto of a man\n  start_ms: 185970\n  end_ms: 188630\n- text: Scaramouche, Scaramouche, will you do the Fandango?\n  start_ms: 188630\n  end_ms: 192430\n- text: Thunderbolt and lightning, very, very frightening me\n  start_ms: 192430\n  end_ms: 196020\n- text: (Galileo) Galileo, (Galileo) Galileo, Galileo Figaro, magnifico\n  start_ms: 196020\n  end_ms: 202210\n- text: But I'm just a poor boy, nobody loves me\n  start_ms: 202210\n  end_ms: 205690\n- text: He's just a poor boy from a poor family\n  start_ms: 205690\n  end_ms: 208620\n- text: Spare him his life from this monstrosity\n  start_ms: 208620\n  end_ms: 213930\n- text: Easy come, easy go, will you let me go?\n  start_ms: 213930\n  end_ms: 216780\n- text: بِسْمِ ٱللَّٰهِ\n  start_ms: 216780\n  end_ms: 217850\n- text: No, we will not let you go (let him go)\n  start_ms: 217850\n  end_ms: 220520\n- text: بِسْمِ ٱللَّٰهِ\n  start_ms: 220520\n  end_ms: 221630\n- text: We will not let you go (let him go)\n  start_ms: 221630\n  end_ms: 223580\n- text: بِسْمِ ٱللَّٰهِ\n  start_ms: 223580\n  end_ms: 224900\n- text: We will not let you go (let me go)\n  start_ms: 224900\n  end_ms: 226910\n- text: Will not let you go (let me go)\n  start_ms: 226910\n  end_ms: 227830\n- text: Never, never, never, never let me go\n  start_ms: 227830\n  end_ms: 231470\n- text: No, no, no, no, no, no, no\n  start_ms: 231470\n  end_ms: 233970\n- text: Oh, mamma mia, mamma mia\n  start_ms: 233970\n  end_ms: 235890\n- text: Mamma mia, let me go\n  start_ms: 235890\n  end_ms: 237420\n- text: Beelzebub has a devil put aside for me, for me, for me\n  start_ms: 237420\n  end_ms: 254980\n- text: So you think you can stone me and spit in my eye?\n  start_ms: 254980\n  end_ms: 260980\n- text: So you think you can love me and leave me to die?\n  start_ms: 260980\n  end_ms: 265860\n- text: Oh, baby, can't do this to me, baby\n  start_ms: 265860\n  end_ms: 272840\n- text: Just gotta get out, just gotta get right outta here\n  start_ms: 272840\n  end_ms: 281150\n- text: ''\n  start_ms: 281150\n  end_ms: 295030\n- text: Ooh\n  start_ms: 295030\n  end_ms: 300050\n- text: Ooh, yeah, ooh, yeah\n  start_ms: 300050\n  end_ms: 304750\n- text: ''\n  start_ms: 304750\n  end_ms: 311780\n- text: Nothing really matters, anyone can see\n  start_ms: 311780\n  end_ms: 318660\n- text: Nothing really matters\n  start_ms: 318660\n  end_ms: 322390\n- text: Nothing really matters to me\n  start_ms: 322390\n  end_ms: 331940\n- text: ''\n  start_ms: 331940\n  end_ms: 342780\n- text: (Any way the wind blows)\n  start_ms: 342780\n  end_ms: 349140\n- text: ''\n  start_ms: 349140\nplain: |-\n  Is this the real life? Is this just fantasy?\n  Caught in a landslide, no escape from reality\n  Open your eyes, look up to the skies and see\n  I'm just a poor boy, I need no sympathy\n  Because I'm easy come, easy go, little high, little low\n  Any way the wind blows doesn't really matter to me, to me\n\n  Mama, just killed a man\n  Put a gun against his head, pulled my trigger, now he's dead\n  Mama, life had just begun\n  But now I've gone and thrown it all away\n  Mama, ooh, didn't mean to make you cry\n  If I'm not back again this time tomorrow\n  Carry on, carry on as if nothing really matters\n\n  Too late, my time has come\n  Sends shivers down my spine, body's aching all the time\n  Goodbye, everybody, I've got to go\n  Gotta leave you all behind and face the truth\n  Mama, ooh (any way the wind blows)\n  I don't wanna die\n  I sometimes wish I'd never been born at all\n\n  I see a little silhouetto of a man\n  Scaramouche, Scaramouche, will you do the Fandango?\n  Thunderbolt and lightning, very, very frightening me\n  (Galileo) Galileo, (Galileo) Galileo, Galileo Figaro, magnifico\n  But I'm just a poor boy, nobody loves me\n  He's just a poor boy from a poor family\n  Spare him his life from this monstrosity\n\n  Easy come, easy go, will you let me go?\n  بِسْمِ ٱللَّٰهِ\n  No, we will not let you go (let him go)\n  بِسْمِ ٱللَّٰهِ\n  We will not let you go (let him go)\n  بِسْمِ ٱللَّٰهِ\n  We will not let you go (let me go)\n  Will not let you go (let me go)\n  Never, never, never, never let me go\n  No, no, no, no, no, no, no\n\n  Oh, mamma mia, mamma mia\n  Mamma mia, let me go\n  Beelzebub has a devil put aside for me, for me, for me\n\n  So you think you can stone me and spit in my eye?\n  So you think you can love me and leave me to die?\n  Oh, baby, can't do this to me, baby\n  Just gotta get out, just gotta get right outta here\n\n  Ooh\n  Ooh, yeah, ooh, yeah\n\n  Nothing really matters, anyone can see\n  Nothing really matters\n  Nothing really matters to me\n\n  (Any way the wind blows)\n",
+     "has_word_sync": false,
+     "source": "lrclib.net"
+    }
+   ]
+  },
+  {
+   "id": 541192,
+   "name": "Imagine",
+   "artist_name": "John Lennon",
+   "album_name": "Imagine",
+   "duration": 184.0,
+   "real": true,
+   "lyrics": [
+    {
+     "plain_lyrics": "Imagine there's no heaven\nIt's easy if you try\nNo hell below us\nAbove us only sky\nImagine all the people\nLiving for today, I\n\nImagine there's no countries\nIt isn't hard to do\nNothing to kill or die for\nAnd no religion too\nImagine all the people\nLiving life in peace\n\nYou may say I'm a dreamer\nBut I'm not the only one\nI hope someday you'll join us\nAnd the world will be as one\n\nImagine no possessions\nI wonder if you can\nNo need for greed or hunger\nA brotherhood of man\nImagine all the people\nSharing all the world, you\n\nYou may say I'm a dreamer\nBut I'm not the only one\nI hope someday you'll join us\nAnd the world will live as one",
+     "synced_lyrics": "[00:14.58] Imagine there's no heaven\n[00:17.44] \n[00:20.61] It's easy if you try\n[00:23.87] \n[00:27.14] No hell below us\n[00:31.96] \n[00:34.02] Above us only sky\n[00:39.71] Imagine all the people\n[00:45.56] Living for today, I\n[00:53.26] Imagine there's no countries\n[00:59.15] It isn't hard to do\n[01:05.41] Nothing to kill or die for\n[01:11.77] And no religion too\n[01:17.62] Imagine all the people\n[01:23.59] Living life in peace\n[01:30.83] You may say I'm a dreamer\n[01:37.42] But I'm not the only one\n[01:43.37] I hope someday you'll join us\n[01:50.39] And the world will be as one\n[01:56.10] Imagine no possessions\n[02:02.31] I wonder if you can\n[02:08.22] No need for greed or hunger\n[02:14.62] A brotherhood of man\n[02:21.00] Imagine all the people\n[02:26.70] Sharing all the world, you\n[02:34.36] You may say I'm a dreamer\n[02:40.47] But I'm not the only one\n[02:46.44] I hope someday you'll join us\n[02:53.51] And the world will live as one\n[02:57.57] ",
+     "instrumental": false,
+     "lyricsfile": "version: '1.0'\nmetadata:\n  title: Imagine\n  artist: John Lennon\n  album: Imagine\n  duration_ms: 184000\n  instrumental: false\nlines:\n- text: Imagine there's no heaven\n  start_ms: 14580\n  end_ms: 17440\n- text: ''\n  start_ms: 17440\n  end_ms: 20610\n- text: It's easy if you try\n  start_ms: 20610\n  end_ms: 23870\n- text: ''\n  start_ms: 23870\n  end_ms: 27140\n- text: No hell below us\n  start_ms: 27140\n  end_ms: 31960\n- text: ''\n  start_ms: 31960\n  end_ms: 34020\n- text: Above us only sky\n  start_ms: 34020\n  end_ms: 39710\n- text: Imagine all the people\n  start_ms: 39710\n  end_ms: 45560\n- text: Living for today, I\n  start_ms: 45560\n  end_ms: 53260\n- text: Imagine there's no countries\n  start_ms: 53260\n  end_ms: 59150\n- text: It isn't hard to do\n  start_ms: 59150\n  end_ms: 65410\n- text: Nothing to kill or die for\n  start_ms: 65410\n  end_ms: 71770\n- text: And no religion too\n  start_ms: 71770\n  end_ms: 77620\n- text: Imagine all the people\n  start_ms: 77620\n  end_ms: 83590\n- text: Living life in peace\n  start_ms: 83590\n  end_ms: 90830\n- text: You may say I'm a dreamer\n  start_ms: 90830\n  end_ms: 97420\n- text: But I'm not the only one\n  start_ms: 97420\n  end_ms: 103370\n- text: I hope someday you'll join us\n  start_ms: 103370\n  end_ms: 110390\n- text: And the world will be as one\n  start_ms: 110390\n  end_ms: 116100\n- text: Imagine no possessions\n  start_ms: 116100\n  end_ms: 122310\n- text: I wonder if you can\n  start_ms: 122310\n  end_ms: 128220\n- text: No need for greed or hunger\n  start_ms: 128220\n  end_ms: 134620\n- text: A brotherhood of man\n  start_ms: 134620\n  end_ms: 141000\n- text: Imagine all the people\n  start_ms: 141000\n  end_ms: 146700\n- text: Sharing all the world, you\n  start_ms: 146700\n  end_ms: 154360\n- text: You may say I'm a dreamer\n  start_ms: 154360\n  end_ms: 160470\n- text: But I'm not the only one\n  start_ms: 160470\n  end_ms: 166440\n- text: I hope someday you'll join us\n  start_ms: 166440\n  end_ms: 173510\n- text: And the world will live as one\n  start_ms: 173510\n  end_ms: 177570\n- text: ''\n  start_ms: 177570\nplain: |-\n  Imagine there's no heaven\n  It's easy if you try\n  No hell below us\n  Above us only sky\n  Imagine all the people\n  Living for today, I\n\n  Imagine there's no countries\n  It isn't hard to do\n  Nothing to kill or die for\n  And no religion too\n  Imagine all the people\n  Living life in peace\n\n  You may say I'm a dreamer\n  But I'm not the only one\n  I hope someday you'll join us\n  And the world will be as one\n\n  Imagine no possessions\n  I wonder if you can\n  No need for greed or hunger\n  A brotherhood of man\n  Imagine all the people\n  Sharing all the world, you\n\n  You may say I'm a dreamer\n  But I'm not the only one\n  I hope someday you'll join us\n  And the world will live as one\n",
+     "has_word_sync": false,
+     "source": "lrclib.net"
+    }
+   ]
+  },
+  {
+   "id": 3735969,
+   "name": "Smells Like Teen Spirit",
+   "artist_name": "Nirvana",
+   "album_name": "Nevermind",
+   "duration": 301.0,
+   "real": true,
+   "lyrics": [
+    {
+     "plain_lyrics": "Load up on guns, bring your friends\nIt's fun to lose and to pretend\nShe's over-bored, and self-assured\nOh no, I know a dirty word\nHello, hello, hello, how low?\nHello, hello, hello, how low?\nHello, hello, hello, how low?\nHello, hello, hello\nWith the lights out, it's less dangerous\nHere we are now, entertain us\nI feel stupid and contagious\nHere we are now, entertain us\nA mulatto, an albino\nA mosquito, my libido, yeah\nHey, yey\nI'm worse at what I do best\nAnd for this gift, I feel blessed\nOur little group has always been\nAnd always will until the end\nHello, hello, hello, how low?\nHello, hello, hello, how low?\nHello, hello, hello, how low?\nHello, hello, hello\nWith the lights out, it's less dangerous\nHere we are now, entertain us\nI feel stupid and contagious\nHere we are now, entertain us\nA mulatto, an albino\nA mosquito, my libido, yeah\nHey, yey\nAnd I forget just why I taste\nOh yeah, I guess it makes me smile\nI found it hard, it's hard to find\nOh well, whatever, never mind\nHello, hello, hello, how low?\nHello, hello, hello, how low?\nHello, hello, hello, how low?\nHello, hello, hello\nWith the lights out, it's less dangerous\nHere we are now, entertain us\nI feel stupid and contagious\nHere we are now, entertain us\nA mulatto, an albino\nA mosquito, my libido\nA denial, a denial\nA denial, a denial\nA denial, a denial\nA denial, a denial\nA denial\n",
+     "synced_lyrics": "[00:33.49] Load up on guns, bring your friends\n[00:38.15] It's fun to lose and to pretend\n[00:41.85] She's over-bored, and self-assured\n[00:46.59] Oh no, I know a dirty word\n[00:50.33] Hello, hello, hello, how low?\n[00:54.47] Hello, hello, hello, how low?\n[00:58.55] Hello, hello, hello, how low?\n[01:02.55] Hello, hello, hello\n[01:05.71] With the lights out, it's less dangerous\n[01:09.29] Here we are now, entertain us\n[01:13.43] I feel stupid and contagious\n[01:17.67] Here we are now, entertain us\n[01:21.55] A mulatto, an albino\n[01:25.71] A mosquito, my libido, yeah\n[01:32.11] Hey, yey\n[01:47.59] I'm worse at what I do best\n[01:51.87] And for this gift, I feel blessed\n[01:55.87] Our little group has always been\n[01:59.73] And always will until the end\n[02:04.13] Hello, hello, hello, how low?\n[02:08.17] Hello, hello, hello, how low?\n[02:12.29] Hello, hello, hello, how low?\n[02:16.45] Hello, hello, hello\n[02:19.45] With the lights out, it's less dangerous\n[02:23.25] Here we are now, entertain us\n[02:27.29] I feel stupid and contagious\n[02:31.29] Here we are now, entertain us\n[02:35.35] A mulatto, an albino\n[02:39.53] A mosquito, my libido, yeah\n[02:45.87] Hey, yey\n[03:33.56] And I forget just why I taste\n[03:37.94] Oh yeah, I guess it makes me smile\n[03:41.72] I found it hard, it's hard to find\n[03:46.12] Oh well, whatever, never mind\n[03:50.17] Hello, hello, hello, how low?\n[03:54.54] Hello, hello, hello, how low?\n[03:59.01] Hello, hello, hello, how low?\n[04:02.33] Hello, hello, hello\n[04:05.44] With the lights out, it's less dangerous\n[04:08.98] Here we are now, entertain us\n[04:13.16] I feel stupid and contagious\n[04:17.10] Here we are now, entertain us\n[04:21.10] A mulatto, an albino\n[04:25.10] A mosquito, my libido\n[04:29.14] A denial, a denial\n[04:33.48] A denial, a denial\n[04:37.66] A denial, a denial\n[04:41.78] A denial, a denial\n[04:43.46] A denial\n[04:53.22]",
+     "instrumental": false,
+     "lyricsfile": "version: '1.0'\nmetadata:\n  title: Smells Like Teen Spirit\n  artist: Nirvana\n  album: Nevermind\n  duration_ms: 301000\n  instrumental: false\nlines:\n- text: Load up on guns, bring your friends\n  start_ms: 33490\n  end_ms: 38150\n- text: It's fun to lose and to pretend\n  start_ms: 38150\n  end_ms: 41850\n- text: She's over-bored, and self-assured\n  start_ms: 41850\n  end_ms: 46590\n- text: Oh no, I know a dirty word\n  start_ms: 46590\n  end_ms: 50330\n- text: Hello, hello, hello, how low?\n  start_ms: 50330\n  end_ms: 54470\n- text: Hello, hello, hello, how low?\n  start_ms: 54470\n  end_ms: 58550\n- text: Hello, hello, hello, how low?\n  start_ms: 58550\n  end_ms: 62550\n- text: Hello, hello, hello\n  start_ms: 62550\n  end_ms: 65710\n- text: With the lights out, it's less dangerous\n  start_ms: 65710\n  end_ms: 69290\n- text: Here we are now, entertain us\n  start_ms: 69290\n  end_ms: 73430\n- text: I feel stupid and contagious\n  start_ms: 73430\n  end_ms: 77670\n- text: Here we are now, entertain us\n  start_ms: 77670\n  end_ms: 81550\n- text: A mulatto, an albino\n  start_ms: 81550\n  end_ms: 85710\n- text: A mosquito, my libido, yeah\n  start_ms: 85710\n  end_ms: 92110\n- text: Hey, yey\n  start_ms: 92110\n  end_ms: 107590\n- text: I'm worse at what I do best\n  start_ms: 107590\n  end_ms: 111870\n- text: And for this gift, I feel blessed\n  start_ms: 111870\n  end_ms: 115870\n- text: Our little group has always been\n  start_ms: 115870\n  end_ms: 119730\n- text: And always will until the end\n  start_ms: 119730\n  end_ms: 124130\n- text: Hello, hello, hello, how low?\n  start_ms: 124130\n  end_ms: 128170\n- text: Hello, hello, hello, how low?\n  start_ms: 128170\n  end_ms: 132290\n- text: Hello, hello, hello, how low?\n  start_ms: 132290\n  end_ms: 136450\n- text: Hello, hello, hello\n  start_ms: 136450\n  end_ms: 139450\n- text: With the lights out, it's less dangerous\n  start_ms: 139450\n  end_ms: 143250\n- text: Here we are now, entertain us\n  start_ms: 143250\n  end_ms: 147290\n- text: I feel stupid and contagious\n  start_ms: 147290\n  end_ms: 151290\n- text: Here we are now, entertain us\n  start_ms: 151290\n  end_ms: 155350\n- text: A mulatto, an albino\n  start_ms: 155350\n  end_ms: 159530\n- text: A mosquito, my libido, yeah\n  start_ms: 159530\n  end_ms: 165870\n- text: Hey, yey\n  start_ms: 165870\n  end_ms: 213560\n- text: And I forget just why I taste\n  start_ms: 213560\n  end_ms: 217940\n- text: Oh yeah, I guess it makes me smile\n  start_ms: 217940\n  end_ms: 221720\n- text: I found it hard, it's hard to find\n  start_ms: 221720\n  end_ms: 226120\n- text: Oh well, whatever, never mind\n  start_ms: 226120\n  end_ms: 230170\n- text: Hello, hello, hello, how low?\n  start_ms: 230170\n  end_ms: 234540\n- text: Hello, hello, hello, how low?\n  start_ms: 234540\n  end_ms: 239010\n- text: Hello, hello, hello, how low?\n  start_ms: 239010\n  end_ms: 242330\n- text: Hello, hello, hello\n  start_ms: 242330\n  end_ms: 245440\n- text: With the lights out, it's less dangerous\n  start_ms: 245440\n  end_ms: 248980\n- text: Here we are now, entertain us\n  start_ms: 248980\n  end_ms: 253160\n- text: I feel stupid and contagious\n  start_ms: 253160\n  end_ms: 257100\n- text: Here we are now, entertain us\n  start_ms: 257100\n  end_ms: 261100\n- text: A mulatto, an albino\n  start_ms: 261100\n  end_ms: 265100\n- text: A mosquito, my libido\n  start_ms: 265100\n  end_ms: 269140\n- text: A denial, a denial\n  start_ms: 269140\n  end_ms: 273480\n- text: A denial, a denial\n  start_ms: 273480\n  end_ms: 277660\n- text: A denial, a denial\n  start_ms: 277660\n  end_ms: 281780\n- text: A denial, a denial\n  start_ms: 281780\n  end_ms: 283460\n- text: A denial\n  start_ms: 283460\n  end_ms: 293220\n- text: ''\n  start_ms: 293220\nplain: |\n  Load up on guns, bring your friends\n  It's fun to lose and to pretend\n  She's over-bored, and self-assured\n  Oh no, I know a dirty word\n  Hello, hello, hello, how low?\n  Hello, hello, hello, how low?\n  Hello, hello, hello, how low?\n  Hello, hello, hello\n  With the lights out, it's less dangerous\n  Here we are now, entertain us\n  I feel stupid and contagious\n  Here we are now, entertain us\n  A mulatto, an albino\n  A mosquito, my libido, yeah\n  Hey, yey\n  I'm worse at what I do best\n  And for this gift, I feel blessed\n  Our little group has always been\n  And always will until the end\n  Hello, hello, hello, how low?\n  Hello, hello, hello, how low?\n  Hello, hello, hello, how low?\n  Hello, hello, hello\n  With the lights out, it's less dangerous\n  Here we are now, entertain us\n  I feel stupid and contagious\n  Here we are now, entertain us\n  A mulatto, an albino\n  A mosquito, my libido, yeah\n  Hey, yey\n  And I forget just why I taste\n  Oh yeah, I guess it makes me smile\n  I found it hard, it's hard to find\n  Oh well, whatever, never mind\n  Hello, hello, hello, how low?\n  Hello, hello, hello, how low?\n  Hello, hello, hello, how low?\n  Hello, hello, hello\n  With the lights out, it's less dangerous\n  Here we are now, entertain us\n  I feel stupid and contagious\n  Here we are now, entertain us\n  A mulatto, an albino\n  A mosquito, my libido\n  A denial, a denial\n  A denial, a denial\n  A denial, a denial\n  A denial, a denial\n  A denial\n",
+     "has_word_sync": false,
+     "source": "lrclib.net"
+    }
+   ]
+  },
+  {
+   "id": 130407,
+   "name": "Billie Jean",
+   "artist_name": "Michael Jackson",
+   "album_name": "Thriller",
+   "duration": 294.0,
+   "real": true,
+   "lyrics": [
+    {
+     "plain_lyrics": "She was more like a beauty queen from a movie scene\nI said, \"Don't mind, but what do you mean I am the one\nWho will dance on the floor in the round?\"\nShe said I am the one\nWho will dance on the floor in the round\nShe told me her name was Billie Jean as she caused a scene\nThen every head turned with eyes that dreamed of being the one\nWho will dance on the floor in the round\n\nPeople always told me, \"Be careful of what you do\nDon't go around breaking young girls' hearts\" (hee-eeh)\nAnd mother always told me, \"Be careful of who you love\nAnd be careful of what you do (oh, oh)\n'Cause the lie becomes the truth\" (oh, oh), eh-eh\nBillie Jean is not my lover, uh\nShe's just a girl who claims that I am the one (oh, baby)\nBut the kid is not my son (ooh!), uh\nShe says I am the one (oh, baby)\nBut the kid is not my son\n(Hee-hee-hee, hee-hee-hee, ooh!) no, no\nFor 40 days and for 40 nights, I was on her side\nBut who can stand when she's in demand? Her schemes and plans\n'Cause we danced on the floor in the round (hee)\nSo take my strong advice\nJust remember to always think twice\n(Don't think twice!) Do think twice! (Ah-hoo)\nShe told my baby we'd danced 'til 3:00, then she looked at me\nThen showed a photo of a baby crying, his eyes were like mine (oh, no)\n'Cause we danced on the floor in the round, baby\n(Ooh, hee-hee-hee)\nPeople always told me, \"Be careful of what you do\nAnd don't go around breaking young girls' hearts\" (don't break no hearts)\nBut she came and stood right by me\nJust the smell of sweet perfume\nThis happened much too soon\nShe called me to her room, hey\nBillie Jean is not my lover (hoo)\nShe's just a girl who claims that I am the one, uh\nBut the kid is not my son\nNo-no-no, no-no-no-no-no-no (hoo)\nBillie Jean is not my lover, uh\nShe's just a girl who claims that I am the one (oh, baby)\nBut the kid is not my son (no, no)\nShe says I am the one (oh, baby)\nBut the kid is not my son\n(No, hee-hee)\n\nHee! Hoo!\n\nShe says I am the one, uh\nBut the kid is not my son\nNo-no-no, hoo (oh)\nBillie Jean is not my lover\nShe's just a girl who claims that I am the one (you know what you did to me, baby)\nBut the kid is not my son\nNo-no-no, no-no-no-no\nShe says I am the one (no)\nBut the kid is not my son (no-no-no)\nShe says I am the one (you know what you did)\nShe says he is my son (breakin' my heart, babe)\nShe says I am the one\nYeah, Billie Jean is not my lover, uh\nYeah, Billie Jean is not my lover, uh\nYeah, Billie Jean is not my lover, uh\nYeah, Billie Jean is not my lover, uh (don't call me Billie Jean, hoo)\nBillie Jean is not my lover, uh (she's not at the scene)\nYeah, Billie Jean is not...\n",
+     "synced_lyrics": "[00:29.35] She was more like a beauty queen from a movie scene\n[00:33.29] I said, \"Don't mind, but what do you mean I am the one\n[00:38.55] Who will dance on the floor in the round?\"\n[00:43.50] She said I am the one\n[00:46.90] Who will dance on the floor in the round\n[00:53.87] She told me her name was Billie Jean as she caused a scene\n[00:57.93] Then every head turned with eyes that dreamed of being the one\n[01:03.39] Who will dance on the floor in the round\n[01:07.02] \n[01:09.95] People always told me, \"Be careful of what you do\n[01:13.64] Don't go around breaking young girls' hearts\" (hee-eeh)\n[01:17.94] And mother always told me, \"Be careful of who you love\n[01:21.77] And be careful of what you do (oh, oh)\n[01:23.78] 'Cause the lie becomes the truth\" (oh, oh), eh-eh\n[01:26.61] Billie Jean is not my lover, uh\n[01:30.53] She's just a girl who claims that I am the one (oh, baby)\n[01:35.62] But the kid is not my son (ooh!), uh\n[01:40.74] She says I am the one (oh, baby)\n[01:43.89] But the kid is not my son\n[01:47.17] (Hee-hee-hee, hee-hee-hee, ooh!) no, no\n[01:50.93] For 40 days and for 40 nights, I was on her side\n[01:55.05] But who can stand when she's in demand? Her schemes and plans\n[02:00.48] 'Cause we danced on the floor in the round (hee)\n[02:05.19] So take my strong advice\n[02:08.48] Just remember to always think twice\n[02:12.66] (Don't think twice!) Do think twice! (Ah-hoo)\n[02:15.50] She told my baby we'd danced 'til 3:00, then she looked at me\n[02:19.91] Then showed a photo of a baby crying, his eyes were like mine (oh, no)\n[02:24.77] 'Cause we danced on the floor in the round, baby\n[02:29.49] (Ooh, hee-hee-hee)\n[02:31.65] People always told me, \"Be careful of what you do\n[02:35.26] And don't go around breaking young girls' hearts\" (don't break no hearts)\n[02:39.60] But she came and stood right by me\n[02:41.67] Just the smell of sweet perfume\n[02:43.84] This happened much too soon\n[02:45.80] She called me to her room, hey\n[02:48.54] Billie Jean is not my lover (hoo)\n[02:52.51] She's just a girl who claims that I am the one, uh\n[02:57.69] But the kid is not my son\n[03:01.68] No-no-no, no-no-no-no-no-no (hoo)\n[03:05.19] Billie Jean is not my lover, uh\n[03:08.85] She's just a girl who claims that I am the one (oh, baby)\n[03:13.98] But the kid is not my son (no, no)\n[03:18.90] She says I am the one (oh, baby)\n[03:22.05] But the kid is not my son\n[03:26.71] (No, hee-hee)\n[03:29.50] \n[03:30.74] Hee! Hoo!\n[03:33.65] \n[03:43.63] She says I am the one, uh\n[03:46.65] But the kid is not my son\n[03:50.49] No-no-no, hoo (oh)\n[03:54.17] Billie Jean is not my lover\n[03:58.30] She's just a girl who claims that I am the one (you know what you did to me, baby)\n[04:03.12] But the kid is not my son\n[04:06.30] No-no-no, no-no-no-no\n[04:08.20] She says I am the one (no)\n[04:11.32] But the kid is not my son (no-no-no)\n[04:16.46] She says I am the one (you know what you did)\n[04:20.66] She says he is my son (breakin' my heart, babe)\n[04:24.47] She says I am the one\n[04:26.65] Yeah, Billie Jean is not my lover, uh\n[04:30.76] Yeah, Billie Jean is not my lover, uh\n[04:34.76] Yeah, Billie Jean is not my lover, uh\n[04:38.80] Yeah, Billie Jean is not my lover, uh (don't call me Billie Jean, hoo)\n[04:43.37] Billie Jean is not my lover, uh (she's not at the scene)\n[04:47.00] Yeah, Billie Jean is not...\n[04:51.29] ",
+     "instrumental": false,
+     "lyricsfile": "version: '1.0'\nmetadata:\n  title: Billie Jean\n  artist: Michael Jackson\n  album: Thriller\n  duration_ms: 294000\n  instrumental: false\nlines:\n- text: She was more like a beauty queen from a movie scene\n  start_ms: 29350\n  end_ms: 33290\n- text: I said, \"Don't mind, but what do you mean I am the one\n  start_ms: 33290\n  end_ms: 38550\n- text: Who will dance on the floor in the round?\"\n  start_ms: 38550\n  end_ms: 43500\n- text: She said I am the one\n  start_ms: 43500\n  end_ms: 46900\n- text: Who will dance on the floor in the round\n  start_ms: 46900\n  end_ms: 53870\n- text: She told me her name was Billie Jean as she caused a scene\n  start_ms: 53870\n  end_ms: 57930\n- text: Then every head turned with eyes that dreamed of being the one\n  start_ms: 57930\n  end_ms: 63390\n- text: Who will dance on the floor in the round\n  start_ms: 63390\n  end_ms: 67020\n- text: ''\n  start_ms: 67020\n  end_ms: 69950\n- text: People always told me, \"Be careful of what you do\n  start_ms: 69950\n  end_ms: 73640\n- text: Don't go around breaking young girls' hearts\" (hee-eeh)\n  start_ms: 73640\n  end_ms: 77940\n- text: And mother always told me, \"Be careful of who you love\n  start_ms: 77940\n  end_ms: 81770\n- text: And be careful of what you do (oh, oh)\n  start_ms: 81770\n  end_ms: 83780\n- text: '''Cause the lie becomes the truth\" (oh, oh), eh-eh'\n  start_ms: 83780\n  end_ms: 86610\n- text: Billie Jean is not my lover, uh\n  start_ms: 86610\n  end_ms: 90530\n- text: She's just a girl who claims that I am the one (oh, baby)\n  start_ms: 90530\n  end_ms: 95620\n- text: But the kid is not my son (ooh!), uh\n  start_ms: 95620\n  end_ms: 100740\n- text: She says I am the one (oh, baby)\n  start_ms: 100740\n  end_ms: 103890\n- text: But the kid is not my son\n  start_ms: 103890\n  end_ms: 107170\n- text: (Hee-hee-hee, hee-hee-hee, ooh!) no, no\n  start_ms: 107170\n  end_ms: 110930\n- text: For 40 days and for 40 nights, I was on her side\n  start_ms: 110930\n  end_ms: 115050\n- text: But who can stand when she's in demand? Her schemes and plans\n  start_ms: 115050\n  end_ms: 120480\n- text: '''Cause we danced on the floor in the round (hee)'\n  start_ms: 120480\n  end_ms: 125190\n- text: So take my strong advice\n  start_ms: 125190\n  end_ms: 128480\n- text: Just remember to always think twice\n  start_ms: 128480\n  end_ms: 132660\n- text: (Don't think twice!) Do think twice! (Ah-hoo)\n  start_ms: 132660\n  end_ms: 135500\n- text: She told my baby we'd danced 'til 3:00, then she looked at me\n  start_ms: 135500\n  end_ms: 139910\n- text: Then showed a photo of a baby crying, his eyes were like mine (oh, no)\n  start_ms: 139910\n  end_ms: 144770\n- text: '''Cause we danced on the floor in the round, baby'\n  start_ms: 144770\n  end_ms: 149490\n- text: (Ooh, hee-hee-hee)\n  start_ms: 149490\n  end_ms: 151650\n- text: People always told me, \"Be careful of what you do\n  start_ms: 151650\n  end_ms: 155260\n- text: And don't go around breaking young girls' hearts\" (don't break no hearts)\n  start_ms: 155260\n  end_ms: 159600\n- text: But she came and stood right by me\n  start_ms: 159600\n  end_ms: 161670\n- text: Just the smell of sweet perfume\n  start_ms: 161670\n  end_ms: 163840\n- text: This happened much too soon\n  start_ms: 163840\n  end_ms: 165800\n- text: She called me to her room, hey\n  start_ms: 165800\n  end_ms: 168540\n- text: Billie Jean is not my lover (hoo)\n  start_ms: 168540\n  end_ms: 172510\n- text: She's just a girl who claims that I am the one, uh\n  start_ms: 172510\n  end_ms: 177690\n- text: But the kid is not my son\n  start_ms: 177690\n  end_ms: 181680\n- text: No-no-no, no-no-no-no-no-no (hoo)\n  start_ms: 181680\n  end_ms: 185190\n- text: Billie Jean is not my lover, uh\n  start_ms: 185190\n  end_ms: 188850\n- text: She's just a girl who claims that I am the one (oh, baby)\n  start_ms: 188850\n  end_ms: 193980\n- text: But the kid is not my son (no, no)\n  start_ms: 193980\n  end_ms: 198900\n- text: She says I am the one (oh, baby)\n  start_ms: 198900\n  end_ms: 202050\n- text: But the kid is not my son\n  start_ms: 202050\n  end_ms: 206710\n- text: (No, hee-hee)\n  start_ms: 206710\n  end_ms: 209500\n- text: ''\n  start_ms: 209500\n  end_ms: 210740\n- text: Hee! Hoo!\n  start_ms: 210740\n  end_ms: 213650\n- text: ''\n  start_ms: 213650\n  end_ms: 223630\n- text: She says I am the one, uh\n  start_ms: 223630\n  end_ms: 226650\n- text: But the kid is not my son\n  start_ms: 226650\n  end_ms: 230490\n- text: No-no-no, hoo (oh)\n  start_ms: 230490\n  end_ms: 234170\n- text: Billie Jean is not my lover\n  start_ms: 234170\n  end_ms: 238300\n- text: She's just a girl who claims that I am the one (you know what you did to me, baby)\n  start_ms: 238300\n  end_ms: 243120\n- text: But the kid is not my son\n  start_ms: 243120\n  end_ms: 246300\n- text: No-no-no, no-no-no-no\n  start_ms: 246300\n  end_ms: 248200\n- text: She says I am the one (no)\n  start_ms: 248200\n  end_ms: 251320\n- text: But the kid is not my son (no-no-no)\n  start_ms: 251320\n  end_ms: 256460\n- text: She says I am the one (you know what you did)\n  start_ms: 256460\n  end_ms: 260660\n- text: She says he is my son (breakin' my heart, babe)\n  start_ms: 260660\n  end_ms: 264470\n- text: She says I am the one\n  start_ms: 264470\n  end_ms: 266650\n- text: Yeah, Billie Jean is not my lover, uh\n  start_ms: 266650\n  end_ms: 270760\n- text: Yeah, Billie Jean is not my lover, uh\n  start_ms: 270760\n  end_ms: 274760\n- text: Yeah, Billie Jean is not my lover, uh\n  start_ms: 274760\n  end_ms: 278800\n- text: Yeah, Billie Jean is not my lover, uh (don't call me Billie Jean, hoo)\n  start_ms: 278800\n  end_ms: 283370\n- text: Billie Jean is not my lover, uh (she's not at the scene)\n  start_ms: 283370\n  end_ms: 287000\n- text: Yeah, Billie Jean is not...\n  start_ms: 287000\n  end_ms: 291290\n- text: ''\n  start_ms: 291290\nplain: |\n  She was more like a beauty queen from a movie scene\n  I said, \"Don't mind, but what do you mean I am the one\n  Who will dance on the floor in the round?\"\n  She said I am the one\n  Who will dance on the floor in the round\n  She told me her name was Billie Jean as she caused a scene\n  Then every head turned with eyes that dreamed of being the one\n  Who will dance on the floor in the round\n\n  People always told me, \"Be careful of what you do\n  Don't go around breaking young girls' hearts\" (hee-eeh)\n  And mother always told me, \"Be careful of who you love\n  And be careful of what you do (oh, oh)\n  'Cause the lie becomes the truth\" (oh, oh), eh-eh\n  Billie Jean is not my lover, uh\n  She's just a girl who claims that I am the one (oh, baby)\n  But the kid is not my son (ooh!), uh\n  She says I am the one (oh, baby)\n  But the kid is not my son\n  (Hee-hee-hee, hee-hee-hee, ooh!) no, no\n  For 40 days and for 40 nights, I was on her side\n  But who can stand when she's in demand? Her schemes and plans\n  'Cause we danced on the floor in the round (hee)\n  So take my strong advice\n  Just remember to always think twice\n  (Don't think twice!) Do think twice! (Ah-hoo)\n  She told my baby we'd danced 'til 3:00, then she looked at me\n  Then showed a photo of a baby crying, his eyes were like mine (oh, no)\n  'Cause we danced on the floor in the round, baby\n  (Ooh, hee-hee-hee)\n  People always told me, \"Be careful of what you do\n  And don't go around breaking young girls' hearts\" (don't break no hearts)\n  But she came and stood right by me\n  Just the smell of sweet perfume\n  This happened much too soon\n  She called me to her room, hey\n  Billie Jean is not my lover (hoo)\n  She's just a girl who claims that I am the one, uh\n  But the kid is not my son\n  No-no-no, no-no-no-no-no-no (hoo)\n  Billie Jean is not my lover, uh\n  She's just a girl who claims that I am the one (oh, baby)\n  But the kid is not my son (no, no)\n  She says I am the one (oh, baby)\n  But the kid is not my son\n  (No, hee-hee)\n\n  Hee! Hoo!\n\n  She says I am the one, uh\n  But the kid is not my son\n  No-no-no, hoo (oh)\n  Billie Jean is not my lover\n  She's just a girl who claims that I am the one (you know what you did to me, baby)\n  But the kid is not my son\n  No-no-no, no-no-no-no\n  She says I am the one (no)\n  But the kid is not my son (no-no-no)\n  She says I am the one (you know what you did)\n  She says he is my son (breakin' my heart, babe)\n  She says I am the one\n  Yeah, Billie Jean is not my lover, uh\n  Yeah, Billie Jean is not my lover, uh\n  Yeah, Billie Jean is not my lover, uh\n  Yeah, Billie Jean is not my lover, uh (don't call me Billie Jean, hoo)\n  Billie Jean is not my lover, uh (she's not at the scene)\n  Yeah, Billie Jean is not...\n",
+     "has_word_sync": false,
+     "source": "lrclib.net"
+    }
+   ]
+  },
+  {
+   "id": 395772,
+   "name": "Hotel California",
+   "artist_name": "Eagles",
+   "album_name": "Hotel California",
+   "duration": 391.0,
+   "real": true,
+   "lyrics": [
+    {
+     "plain_lyrics": "On a dark desert highway\nCool wind in my hair\nWarm smell of colitas\nRising up through the air\nUp ahead in the distance\nI saw a shimmering light\nMy head grew heavy and my sight grew dim\nI had to stop for the night\nThere she stood in the doorway\nI heard the mission bell\nAnd I was thinking to myself\n\"This could be Heaven or this could be Hell\"\nThen she lit up a candle\nAnd she showed me the way\nThere were voices down the corridor\nI thought I heard them say\nWelcome to the Hotel California\nSuch a lovely place (such a lovely place)\nSuch a lovely face\nPlenty of room at the Hotel California\nAny time of year (any time of year)\nYou can find it here\nHer mind is Tiffany-twisted\nShe got the Mercedes Benz\nShe got a lot of pretty, pretty boys\nThat she calls friends\nHow they dance in the courtyard\nSweet summer sweat\nSome dance to remember\nSome dance to forget\nSo I called up the Captain\n\"Please bring me my wine\"\nHe said, 'We haven't had that spirit here\nSince 1969\"\nAnd still those voices are calling from far away\nWake you up in the middle of the night\nJust to hear them say\nWelcome to the Hotel California\nSuch a lovely place (such a lovely place)\nSuch a lovely face\nThey livin' it up at the Hotel California\nWhat a nice surprise (what a nice surprise)\nBring your alibis\nMirrors on the ceiling\nThe pink champagne on ice\nAnd she said, 'We are all just prisoners here\nOf our own device\"\nAnd in the master's chambers\nThey gathered for the feast\nThey stab it with their steely knives\nBut they just can't kill the beast\nLast thing I remember, I was\nRunning for the door\nI had to find the passage back\nTo the place I was before\n\"Relax,\" said the night man\n\"We are programmed to receive\nYou can check out any time you like\nBut you can never leave\"\n",
+     "synced_lyrics": "[00:52.58]On a dark desert highway\n[00:55.66]Cool wind in my hair\n[00:58.82]Warm smell of colitas\n[01:01.97]Rising up through the air\n[01:04.12]\n[01:05.42]Up ahead in the distance\n[01:08.56]I saw a shimmering light\n[01:11.80]My head grew heavy and my sight grew dim\n[01:14.87]I had to stop for the night\n[01:17.47]\n[01:18.43]There she stood in the doorway\n[01:21.82]I heard the mission bell\n[01:25.12]And I was thinking to myself\n[01:27.34]\"This could be Heaven or this could be Hell\"\n[01:30.51]\n[01:31.49]Then she lit up a candle\n[01:35.08]And she showed me the way\n[01:38.30]There were voices down the corridor\n[01:41.47]I thought I heard them say\n[01:43.87]\n[01:44.79]Welcome to the Hotel California\n[01:50.56]Such a lovely place (such a lovely place)\n[01:53.81]Such a lovely face\n[01:57.39]Plenty of room at the Hotel California\n[02:03.64]Any time of year (any time of year)\n[02:06.82]You can find it here\n[02:08.41]\n[02:10.66]Her mind is Tiffany-twisted\n[02:13.77]She got the Mercedes Benz\n[02:16.96]She got a lot of pretty, pretty boys\n[02:20.82]That she calls friends\n[02:22.89]\n[02:23.92]How they dance in the courtyard\n[02:26.77]Sweet summer sweat\n[02:30.49]Some dance to remember\n[02:33.57]Some dance to forget\n[02:35.89]\n[02:37.01]So I called up the Captain\n[02:39.92]\"Please bring me my wine\"\n[02:42.44]He said, 'We haven't had that spirit here since 1969\"\n[02:50.01]And still those voices are calling from far away\n[02:56.57]Wake you up in the middle of the night\n[02:59.85]Just to hear them say\n[03:02.12]\n[03:03.05]Welcome to the Hotel California\n[03:08.82]Such a lovely place (such a lovely place)\n[03:12.08]Such a lovely face\n[03:15.48]They livin' it up at the Hotel California\n[03:21.74]What a nice surprise (what a nice surprise)\n[03:25.17]Bring your alibis\n[03:28.41]\n[03:29.20]Mirrors on the ceiling\n[03:32.34]The pink champagne on ice\n[03:34.49]And she said, 'We are all just prisoners here\n[03:38.97]Of our own device\"\n[03:42.08]And in the master's chambers\n[03:45.13]They gathered for the feast\n[03:48.53]They stab it with their steely knives\n[03:51.21]But they just can't kill the beast\n[03:53.97]\n[03:55.20]Last thing I remember, I was\n[03:58.45]Running for the door\n[04:01.66]I had to find the passage back\n[04:04.17]To the place I was before\n[04:08.22]\"Relax,\" said the night man\n[04:10.54]\"We are programmed to receive\n[04:14.73]You can check out any time you like\n[04:17.68]But you can never leave\"\n[04:20.14]",
+     "instrumental": false,
+     "lyricsfile": "version: \"1.0\"\nmetadata:\n  title: Hotel California\n  artist: Eagles\n  instrumental: false\n  album: Hotel California\n  duration_ms: 391356\nlines:\n  - text: On a dark desert highway\n    words: []\n    start_ms: 52580\n    end_ms: 55760\n  - text: Cool wind in my hair\n    words: []\n    start_ms: 55660\n    end_ms: 58920\n  - text: Warm smell of colitas\n    words: []\n    start_ms: 58820\n    end_ms: 61970\n  - text: Rising up through the air\n    words: []\n    start_ms: 61970\n    end_ms: 65320\n  - text: \"\"\n    words: []\n    start_ms: 64125\n  - text: Up ahead in the distance\n    words: []\n    start_ms: 65420\n    end_ms: 68460\n  - text: I saw a shimmering light\n    words: []\n    start_ms: 68560\n    end_ms: 71600\n  - text: My head grew heavy and my sight grew dim\n    words: []\n    start_ms: 71800\n    end_ms: 74970\n  - text: I had to stop for the night\n    words: []\n    start_ms: 74870\n    end_ms: 78230\n  - text: \"\"\n    words: []\n    start_ms: 77475\n  - text: There she stood in the doorway\n    words: []\n    start_ms: 78430\n    end_ms: 81360\n  - text: I heard the mission bell\n    words: []\n    start_ms: 81825\n    end_ms: 84460\n  - text: And I was thinking to myself\n    words: []\n    start_ms: 85125\n    end_ms: 87310\n  - text: '\"This could be Heaven or this could be Hell\"'\n    words: []\n    start_ms: 87345\n    end_ms: 90990\n  - text: \"\"\n    words: []\n    start_ms: 90510\n  - text: Then she lit up a candle\n    words: []\n    start_ms: 91490\n    end_ms: 94230\n  - text: And she showed me the way\n    words: []\n    start_ms: 95085\n    end_ms: 97420\n  - text: There were voices down the corridor\n    words: []\n    start_ms: 98305\n    end_ms: 100870\n  - text: I thought I heard them say\n    words: []\n    start_ms: 101475\n    end_ms: 104120\n  - text: \"\"\n    words: []\n    start_ms: 103875\n    end_ms: 104795\n  - text: Welcome to the Hotel California\n    words: []\n    start_ms: 104795\n    end_ms: 109830\n  - text: Such a lovely place (such a lovely place)\n    words: []\n    start_ms: 110565\n    end_ms: 113540\n  - text: Such a lovely face\n    words: []\n    start_ms: 113815\n    end_ms: 116930\n  - text: Plenty of room at the Hotel California\n    words: []\n    start_ms: 117395\n    end_ms: 122990\n  - text: Any time of year (any time of year)\n    words: []\n    start_ms: 123645\n    end_ms: 126590\n  - text: You can find it here\n    words: []\n    start_ms: 126825\n    end_ms: 130500\n  - text: \"\"\n    words: []\n    start_ms: 128415\n    end_ms: 130865\n  - text: Her mind is Tiffany-twisted\n    words: []\n    start_ms: 130665\n    end_ms: 133560\n  - text: She got the Mercedes Benz\n    words: []\n    start_ms: 133775\n    end_ms: 136760\n  - text: She got a lot of pretty, pretty boys\n    words: []\n    start_ms: 136960\n    end_ms: 139430\n  - text: That she calls friends\n    words: []\n    start_ms: 140825\n    end_ms: 143640\n  - text: \"\"\n    words: []\n    start_ms: 142895\n    end_ms: 143925\n  - text: How they dance in the courtyard\n    words: []\n    start_ms: 143925\n    end_ms: 146340\n  - text: Sweet summer sweat\n    words: []\n    start_ms: 146775\n    end_ms: 150020\n  - text: Some dance to remember\n    words: []\n    start_ms: 150495\n    end_ms: 152970\n  - text: Some dance to forget\n    words: []\n    start_ms: 153575\n    end_ms: 156280\n  - text: \"\"\n    words: []\n    start_ms: 155895\n    end_ms: 157015\n  - text: So I called up the Captain\n    words: []\n    start_ms: 157015\n    end_ms: 159300\n  - text: '\"Please bring me my wine\"'\n    words: []\n    start_ms: 159925\n    end_ms: 162540\n  - text: He said, 'We haven't had that spirit here since 1969\"\n    words: []\n    start_ms: 162440\n    end_ms: 166200\n  - text: And still those voices are calling from far away\n    words: []\n    start_ms: 170015\n    end_ms: 175460\n  - text: Wake you up in the middle of the night\n    words: []\n    start_ms: 176575\n    end_ms: 180170\n  - text: Just to hear them say\n    words: []\n    start_ms: 179855\n    end_ms: 182470\n  - text: \"\"\n    words: []\n    start_ms: 182125\n    end_ms: 183055\n  - text: Welcome to the Hotel California\n    words: []\n    start_ms: 183055\n    end_ms: 187630\n  - text: Such a lovely place (such a lovely place)\n    words: []\n    start_ms: 188825\n    end_ms: 191300\n  - text: Such a lovely face\n    words: []\n    start_ms: 192085\n    end_ms: 194930\n  - text: They livin' it up at the Hotel California\n    words: []\n    start_ms: 195485\n    end_ms: 200800\n  - text: What a nice surprise (what a nice surprise)\n    words: []\n    start_ms: 201745\n    end_ms: 204520\n  - text: Bring your alibis\n    words: []\n    start_ms: 205175\n    end_ms: 209030\n  - text: \"\"\n    words: []\n    start_ms: 208415\n    end_ms: 209200\n  - text: Mirrors on the ceiling\n    words: []\n    start_ms: 209200\n    end_ms: 211440\n  - text: The pink champagne on ice\n    words: []\n    start_ms: 212340\n    end_ms: 214140\n  - text: And she said, 'We are all just prisoners here\n    words: []\n    start_ms: 214490\n    end_ms: 217910\n  - text: Of our own device\"\n    words: []\n    start_ms: 218970\n    end_ms: 221060\n  - text: And in the master's chambers\n    words: []\n    start_ms: 222080\n    end_ms: 224780\n  - text: They gathered for the feast\n    words: []\n    start_ms: 225130\n    end_ms: 227860\n  - text: They stab it with their steely knives\n    words: []\n    start_ms: 228530\n    end_ms: 231390\n  - text: But they just can't kill the beast\n    words: []\n    start_ms: 231210\n    end_ms: 234470\n  - text: \"\"\n    words: []\n    start_ms: 233970\n    end_ms: 235160\n  - text: Last thing I remember, I was\n    words: []\n    start_ms: 235205\n    end_ms: 237850\n  - text: Running for the door\n    words: []\n    start_ms: 238455\n    end_ms: 240380\n  - text: I had to find the passage back\n    words: []\n    start_ms: 241665\n    end_ms: 243340\n  - text: To the place I was before\n    words: []\n    start_ms: 244175\n    end_ms: 246920\n  - text: '\"Relax,\" said the night man'\n    words: []\n    start_ms: 248225\n    end_ms: 250020\n  - text: '\"We are programmed to receive'\n    words: []\n    start_ms: 250545\n    end_ms: 253380\n  - text: You can check out any time you like\n    words: []\n    start_ms: 254735\n    end_ms: 256670\n  - text: But you can never leave\"\n    words: []\n    start_ms: 257685\n    end_ms: 259040\n  - text: \"\"\n    words: []\n    start_ms: 260140\nplain: |\n  On a dark desert highway\n  Cool wind in my hair\n  Warm smell of colitas\n  Rising up through the air\n  Up ahead in the distance\n  I saw a shimmering light\n  My head grew heavy and my sight grew dim\n  I had to stop for the night\n  There she stood in the doorway\n  I heard the mission bell\n  And I was thinking to myself\n  \"This could be Heaven or this could be Hell\"\n  Then she lit up a candle\n  And she showed me the way\n  There were voices down the corridor\n  I thought I heard them say\n  Welcome to the Hotel California\n  Such a lovely place (such a lovely place)\n  Such a lovely face\n  Plenty of room at the Hotel California\n  Any time of year (any time of year)\n  You can find it here\n  Her mind is Tiffany-twisted\n  She got the Mercedes Benz\n  She got a lot of pretty, pretty boys\n  That she calls friends\n  How they dance in the courtyard\n  Sweet summer sweat\n  Some dance to remember\n  Some dance to forget\n  So I called up the Captain\n  \"Please bring me my wine\"\n  He said, 'We haven't had that spirit here\n  Since 1969\"\n  And still those voices are calling from far away\n  Wake you up in the middle of the night\n  Just to hear them say\n  Welcome to the Hotel California\n  Such a lovely place (such a lovely place)\n  Such a lovely face\n  They livin' it up at the Hotel California\n  What a nice surprise (what a nice surprise)\n  Bring your alibis\n  Mirrors on the ceiling\n  The pink champagne on ice\n  And she said, 'We are all just prisoners here\n  Of our own device\"\n  And in the master's chambers\n  They gathered for the feast\n  They stab it with their steely knives\n  But they just can't kill the beast\n  Last thing I remember, I was\n  Running for the door\n  I had to find the passage back\n  To the place I was before\n  \"Relax,\" said the night man\n  \"We are programmed to receive\n  You can check out any time you like\n  But you can never leave\"\n",
+     "has_word_sync": false,
+     "source": "lrclib.net"
+    }
+   ]
+  },
+  {
+   "id": 9207575,
+   "name": "Nuvole Bianche",
+   "artist_name": "Ludovico Einaudi",
+   "album_name": "Una Mattina",
+   "duration": 356.0,
+   "real": true,
+   "lyrics": [
+    {
+     "plain_lyrics": null,
+     "synced_lyrics": null,
+     "instrumental": true,
+     "lyricsfile": "version: '1.0'\nmetadata:\n  title: Nuvole Bianche\n  artist: Ludovico Einaudi\n  album: Una Mattina\n  duration_ms: 356000\n  instrumental: true\nlines: []\n",
+     "has_word_sync": false,
+     "source": "lrclib.net"
+    }
+   ]
+  }
+ ]
+}

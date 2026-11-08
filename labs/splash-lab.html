@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lavender splash lab</title>
+    <style>
+      /* Lab chrome */
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #17141c;
+        color: #e9e1f9;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        align-items: center;
+        padding: 14px 24px;
+        background: #1f1a27ee;
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid #2f2839;
+      }
+      header h1 {
+        margin: 0 12px 0 0;
+        font-size: 16px;
+        font-weight: 700;
+        color: #cdb8f4;
+      }
+      header label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 13px;
+        color: #bdb3cc;
+      }
+      header select,
+      header input[type='text'],
+      header button {
+        background: #2a2433;
+        color: #e9e1f9;
+        border: 1px solid #3b3349;
+        border-radius: 6px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 13px;
+      }
+      header button {
+        cursor: pointer;
+      }
+      header button:hover {
+        background: #3b3349;
+      }
+      .seg {
+        display: inline-flex;
+        border: 1px solid #3b3349;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .seg button {
+        border: 0;
+        border-radius: 0;
+      }
+      .seg button.on {
+        background: #714fa6;
+      }
+      .intro {
+        padding: 18px 24px 0;
+        max-width: 900px;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #bdb3cc;
+      }
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+        gap: 28px;
+        padding: 24px;
+      }
+      .card h2 {
+        margin: 10px 0 2px;
+        font-size: 15px;
+      }
+      .card p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+        color: #a79db8;
+      }
+      .frame {
+        position: relative;
+        aspect-ratio: 4 / 3;
+        container-type: size;
+        border-radius: 10px;
+        overflow: hidden;
+        cursor: zoom-in;
+        box-shadow:
+          0 0 0 1px #2f2839,
+          0 12px 30px #0006;
+      }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: none;
+      }
+      .overlay.open {
+        display: block;
+      }
+      .overlay .frame {
+        position: absolute;
+        inset: 0;
+        aspect-ratio: auto;
+        border-radius: 0;
+        cursor: zoom-out;
+      }
+      .overlay .hint {
+        position: absolute;
+        top: 10px;
+        right: 14px;
+        z-index: 2;
+        font-size: 12px;
+        color: #8a8494;
+      }
+
+      /* Splash themes (dark matches neutral-950, light matches white) */
+      .t-dark {
+        --bg: #0a0a0a;
+        --word: #cdb8f4;
+        --glow: #f6f2fd;
+        --muted: #8a8494;
+        --bud: #a175e4;
+        --bud2: #d5c5f6;
+        --stem: #855ec1;
+        --leaf: #714fa6;
+        --track: #241f2c;
+        --tile: #a87eeb;
+      }
+      .t-light {
+        --bg: #ffffff;
+        --word: #714fa6;
+        --glow: #c5acf4;
+        --muted: #7a7387;
+        --bud: #714fa6;
+        --bud2: #b592f1;
+        --stem: #855ec1;
+        --leaf: #966bd7;
+        --track: #e8e0f9;
+        --tile: #a87eeb;
+      }
+      .f-serif {
+        --wfont: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+        --wweight: 500;
+        --wtrack: 0.01em;
+      }
+      .f-sans {
+        --wfont: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --wweight: 300;
+        --wtrack: 0.08em;
+      }
+      .f-rounded {
+        --wfont: ui-rounded, 'SF Pro Rounded', 'Segoe UI Variable Display', 'Segoe UI', system-ui,
+          sans-serif;
+        --wweight: 600;
+        --wtrack: 0.02em;
+      }
+
+      .splash {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2.5cqmin;
+        background: var(--bg);
+        overflow: hidden;
+      }
+      .word {
+        font-family: var(--wfont);
+        font-weight: var(--wweight);
+        letter-spacing: var(--wtrack);
+        color: var(--word);
+        font-size: 8cqmin;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .word.big {
+        font-size: 15cqmin;
+      }
+      .tag {
+        font-size: 3cqmin;
+        color: var(--muted);
+        letter-spacing: 0.03em;
+        opacity: 0;
+        animation: fade 0.9s ease-out 0.8s forwards;
+      }
+      .tag:empty {
+        display: none;
+      }
+      .status {
+        position: absolute;
+        bottom: 6cqmin;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 2.4cqmin;
+        color: var(--muted);
+        opacity: 0;
+        animation: fade 0.6s ease-out 0.6s forwards;
+      }
+      .hide-status .status {
+        display: none;
+      }
+      @keyframes fade {
+        to {
+          opacity: 1;
+        }
+      }
+
+      /* Sprig (geometry taken from the app icon) */
+      .sprig {
+        overflow: visible;
+      }
+      .sprig .stem {
+        fill: none;
+        stroke: var(--stem);
+        stroke-width: 2.6;
+        stroke-linecap: round;
+      }
+      .sprig .leaf {
+        fill: var(--leaf);
+      }
+      .sprig .bud ellipse {
+        fill: var(--bud);
+      }
+      .sprig .sway,
+      .sprig .bud,
+      .sprig .leaf {
+        transform-box: fill-box;
+      }
+      .sprig .sway {
+        transform-origin: 50% 100%;
+      }
+      .sprig .bud {
+        transform-origin: center;
+      }
+      .sprig .leaf {
+        transform-origin: 50% 100%;
+      }
+
+      /* A: wordmark */
+      .letters span {
+        display: inline-block;
+        opacity: 0;
+        animation:
+          rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--i) * 70ms) forwards,
+          glow 3.4s ease-in-out calc(1.3s + var(--i) * 110ms) infinite;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(0.25em);
+          filter: blur(4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+          filter: none;
+        }
+      }
+      @keyframes glow {
+        0%,
+        55%,
+        100% {
+          color: var(--word);
+        }
+        25% {
+          color: var(--glow);
+        }
+      }
+
+      /* B: swaying sprig */
+      .o-sway .sprig {
+        height: 42cqmin;
+      }
+      .o-sway .sway {
+        animation: sway 3.8s ease-in-out infinite alternate;
+      }
+      .o-sway .bud ellipse {
+        animation: breathe 2.6s ease-in-out calc(var(--i) * 0.2s) infinite;
+      }
+      @keyframes sway {
+        from {
+          transform: rotate(-5deg);
+        }
+        to {
+          transform: rotate(5deg);
+        }
+      }
+      @keyframes breathe {
+        0%,
+        100% {
+          fill: var(--bud);
+        }
+        50% {
+          fill: var(--bud2);
+        }
+      }
+
+      /* C: bloom (bud keyframes are generated per row in the script) */
+      .o-bloom .sprig {
+        height: 42cqmin;
+      }
+      .o-bloom .sway {
+        animation:
+          sway 3.8s ease-in-out infinite alternate,
+          sprigfade 5s ease-in-out infinite;
+      }
+      .o-bloom .stem {
+        stroke-dasharray: 1;
+        animation: draw 5s ease-in-out infinite;
+      }
+      .o-bloom .leaf {
+        animation: leafin 5s ease-out infinite;
+      }
+      @keyframes sprigfade {
+        0%,
+        84% {
+          opacity: 1;
+        }
+        96%,
+        100% {
+          opacity: 0;
+        }
+      }
+      @keyframes draw {
+        0% {
+          stroke-dashoffset: 1;
+        }
+        24%,
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes leafin {
+        0%,
+        6% {
+          transform: scale(0);
+        }
+        18%,
+        100% {
+          transform: scale(1);
+        }
+      }
+
+      /* D: field */
+      .field {
+        display: flex;
+        align-items: flex-end;
+        gap: 1cqmin;
+        height: 40cqmin;
+        margin-bottom: 2cqmin;
+      }
+      .field .sprig .sway {
+        animation: sway var(--dur) ease-in-out var(--delay) infinite alternate;
+      }
+      .field .bud ellipse {
+        animation: breathe 3s ease-in-out calc(var(--i) * 0.25s + var(--delay)) infinite;
+      }
+
+      /* E: lyric sheet */
+      .o-sheet .icon {
+        width: 34cqmin;
+        height: 34cqmin;
+        filter: drop-shadow(0 1.5cqmin 3cqmin #0004);
+      }
+      .o-sheet .fillbar {
+        transform-box: fill-box;
+        transform-origin: 0 50%;
+        fill: #714fa6;
+      }
+      .o-sheet .b1 {
+        animation: k1 4.2s ease-in-out infinite;
+      }
+      .o-sheet .b2 {
+        animation: k2 4.2s ease-in-out infinite;
+      }
+      .o-sheet .b3 {
+        animation: k3 4.2s ease-in-out infinite;
+      }
+      @keyframes k1 {
+        0% {
+          transform: scaleX(0);
+        }
+        22%,
+        86% {
+          transform: scaleX(1);
+          opacity: 1;
+        }
+        100% {
+          transform: scaleX(1);
+          opacity: 0;
+        }
+      }
+      @keyframes k2 {
+        0%,
+        24% {
+          transform: scaleX(0);
+        }
+        44%,
+        86% {
+          transform: scaleX(1);
+          opacity: 1;
+        }
+        100% {
+          transform: scaleX(1);
+          opacity: 0;
+        }
+      }
+      @keyframes k3 {
+        0%,
+        46% {
+          transform: scaleX(0);
+        }
+        62%,
+        86% {
+          transform: scaleX(1);
+          opacity: 1;
+        }
+        100% {
+          transform: scaleX(1);
+          opacity: 0;
+        }
+      }
+      .o-sheet .note {
+        transform-box: fill-box;
+        animation: bob 1.05s ease-in-out infinite alternate;
+      }
+      .o-sheet .note.n2 {
+        animation-delay: 0.52s;
+      }
+      @keyframes bob {
+        to {
+          transform: translateY(-1.6px);
+        }
+      }
+      .o-sheet .icon .sway {
+        transform-box: fill-box;
+        transform-origin: 50% 100%;
+        animation: sway 3.8s ease-in-out infinite alternate;
+      }
+
+      /* F: quiet */
+      .o-quiet img {
+        width: 18cqmin;
+        height: 18cqmin;
+      }
+      .o-quiet .word {
+        font-size: 6.5cqmin;
+        margin-top: 1cqmin;
+      }
+      .bar {
+        position: relative;
+        width: 28cqmin;
+        height: 0.7cqmin;
+        min-height: 2px;
+        margin-top: 2cqmin;
+        border-radius: 99px;
+        background: var(--track);
+        overflow: hidden;
+      }
+      .bar::after {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 35%;
+        border-radius: inherit;
+        background: var(--bud);
+        animation: slide 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+      }
+      @keyframes slide {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(290%);
+        }
+      }
+      .o-quiet .status {
+        position: static;
+        margin-top: 1cqmin;
+      }
+      .hide-status .o-quiet .status {
+        display: block;
+      }
+
+      /* G: petals */
+      .petals {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      .petal {
+        position: absolute;
+        top: -4%;
+        left: var(--x);
+        animation: fall var(--dur) linear var(--delay) infinite;
+      }
+      .petal b {
+        display: block;
+      }
+      .petal i {
+        display: block;
+        width: var(--s);
+        height: calc(var(--s) * 1.45);
+        border-radius: 50%;
+        background: var(--c);
+        opacity: 0.75;
+        animation: drift calc(var(--dur) / 3) ease-in-out var(--delay) infinite alternate;
+      }
+      @keyframes fall {
+        to {
+          transform: translateY(108cqh);
+        }
+      }
+      @keyframes drift {
+        from {
+          transform: translateX(-2.5cqmin) rotate(-30deg);
+        }
+        to {
+          transform: translateX(2.5cqmin) rotate(35deg);
+        }
+      }
+      .o-petals .word,
+      .o-petals .tag {
+        position: relative;
+      }
+
+      /* Exits into the app */
+      .sec {
+        margin: 12px 24px 0;
+        font-size: 18px;
+        color: #cdb8f4;
+      }
+      .sec + p {
+        margin: 4px 24px 0;
+        max-width: 900px;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #bdb3cc;
+      }
+      .card .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .card .row button {
+        background: #2a2433;
+        color: #e9e1f9;
+        border: 1px solid #3b3349;
+        border-radius: 6px;
+        padding: 5px 10px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .card .row button:hover {
+        background: #3b3349;
+      }
+      .exitframe {
+        cursor: pointer;
+      }
+      .app-under {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top;
+        transform: scale(1.025);
+        transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .exiting .app-under {
+        transform: none;
+      }
+      .done .splash {
+        display: none;
+      }
+      @keyframes out {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
+      }
+      @keyframes liftout {
+        from {
+          opacity: 1;
+          transform: none;
+          filter: none;
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-3cqmin);
+          filter: blur(6px);
+        }
+      }
+      @keyframes bgclear {
+        to {
+          background-color: transparent;
+        }
+      }
+      /* Text always leaves first and fast, so it never sits over the app */
+      .exiting .word,
+      .exiting .tag,
+      .exiting .status {
+        animation: out 0.18s ease-out forwards;
+      }
+
+      /* D1 Dissolve: text out, then the dark fades in one piece */
+      .x-dissolve.exiting .splash {
+        animation: out 0.4s ease 0.12s forwards;
+      }
+      /* D2 Soft focus: as the dark fades the app sharpens out of a blur */
+      .x-soft .app-under {
+        filter: blur(10px);
+        transition:
+          transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+          filter 0.6s ease 0.1s;
+      }
+      .x-soft.exiting .app-under {
+        filter: none;
+      }
+      .x-soft.exiting .splash {
+        animation: out 0.45s ease 0.1s forwards;
+      }
+      /* D3 Quick: everything gone in a third of a second, no zoom */
+      .x-quick .app-under {
+        transform: none;
+      }
+      .x-quick.exiting .splash {
+        animation: out 0.3s ease forwards;
+      }
+
+      /* L1 Lift: the name rises away, the dark clears, the buds fade a beat later */
+      .x-lift.exiting .word,
+      .x-lift.exiting .tag {
+        animation: liftout 0.4s ease-in forwards;
+      }
+      .x-lift.exiting .splash {
+        animation: bgclear 0.45s ease 0.15s forwards;
+      }
+      .x-lift.exiting .petals {
+        animation: out 0.45s ease 0.35s forwards;
+      }
+      /* L2 Lift and drop: the name rises, the buds fall away off the bottom */
+      @keyframes drop {
+        to {
+          transform: translateY(45cqh);
+          opacity: 0;
+        }
+      }
+      .x-drop.exiting .word,
+      .x-drop.exiting .tag {
+        animation: liftout 0.4s ease-in forwards;
+      }
+      .x-drop.exiting .splash {
+        animation: bgclear 0.45s ease 0.15s forwards;
+      }
+      .x-drop.exiting .petals {
+        animation: drop 0.7s cubic-bezier(0.5, 0, 0.9, 0.6) forwards;
+      }
+      /* L3 Lift and scatter: the name rises, the buds blow outward and fade */
+      @keyframes scatter {
+        to {
+          transform: scale(1.7);
+          opacity: 0;
+        }
+      }
+      .x-scatter.exiting .word,
+      .x-scatter.exiting .tag {
+        animation: liftout 0.4s ease-in forwards;
+      }
+      .x-scatter.exiting .splash {
+        animation: bgclear 0.45s ease 0.1s forwards;
+      }
+      .x-scatter.exiting .petals {
+        animation: scatter 0.65s cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+      }
+      /* L4 Curtain: the name lifts and the whole splash rises off the top */
+      @keyframes curtain {
+        to {
+          transform: translateY(-100%);
+        }
+      }
+      .x-curtain.exiting .word,
+      .x-curtain.exiting .tag {
+        animation: liftout 0.3s ease-in forwards;
+      }
+      .x-curtain.exiting .splash {
+        animation: curtain 0.65s cubic-bezier(0.7, 0, 0.25, 1) 0.1s forwards;
+      }
+
+      /* Scatter family: the name always lifts away and the dark clears */
+      /* The name is nearly gone (ease-out, 0.2 s) before the dark starts to
+         clear at 0.18 s, so it never shows over the app */
+      .s-fam.exiting .word,
+      .s-fam.exiting .tag {
+        animation: liftout 0.2s ease-out forwards;
+      }
+      .s-fam.exiting .splash {
+        animation: bgclear 0.45s ease 0.18s forwards;
+      }
+      .s-fam .petals {
+        transform-origin: 50% 50%;
+      }
+      @keyframes burst {
+        to {
+          transform: scale(2.6);
+          opacity: 0;
+        }
+      }
+      @keyframes swirl {
+        to {
+          transform: rotate(28deg) scale(1.9);
+          opacity: 0;
+        }
+      }
+      @keyframes gust {
+        to {
+          transform: translateX(38cqw) skewX(-12deg) scale(1.2);
+          opacity: 0;
+        }
+      }
+      @keyframes scatterup {
+        to {
+          transform: translateY(-18cqh) scale(1.6);
+          opacity: 0;
+        }
+      }
+      @keyframes ownway {
+        to {
+          transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(1.5);
+          opacity: 0;
+        }
+      }
+      .x-s1.exiting .petals,
+      .x-s7.exiting .petals {
+        animation: scatter 0.65s cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+      }
+      .x-s2.exiting .petals {
+        animation: burst 0.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+      }
+      .x-s3.exiting .petals {
+        animation: swirl 0.75s cubic-bezier(0.3, 0.5, 0.3, 1) forwards;
+      }
+      .x-s4.exiting .petals {
+        animation: gust 0.6s cubic-bezier(0.5, 0, 0.8, 0.5) forwards;
+      }
+      .x-s5.exiting .petal b {
+        animation: ownway 0.7s cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+      }
+      .x-s6.exiting .petals {
+        animation: scatterup 0.7s cubic-bezier(0.3, 0.5, 0.3, 1) forwards;
+      }
+      .x-s7 .app-under {
+        filter: blur(10px);
+        transition:
+          transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+          filter 0.6s ease 0.1s;
+      }
+      .x-s7.exiting .app-under {
+        filter: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .splash *,
+        .splash *::after {
+          animation-duration: 0.01s !important;
+          animation-iteration-count: 1 !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Lavender splash lab</h1>
+      <label
+        >Theme
+        <span class="seg" data-ctl="theme">
+          <button data-v="dark" class="on">Dark</button><button data-v="light">Light</button>
+        </span>
+      </label>
+      <label
+        >Wordmark
+        <span class="seg" data-ctl="font">
+          <button data-v="serif" class="on">Serif</button><button data-v="sans">Sans</button
+          ><button data-v="rounded">Rounded</button>
+        </span>
+      </label>
+      <label
+        >Tagline
+        <select id="tagline">
+          <option value="">None</option>
+          <option selected>Words for your sounds</option>
+          <option>Lyrics for your library</option>
+          <option>Synced lyrics, found offline</option>
+          <option>Every song, every word</option>
+          <option value="__custom">Custom…</option>
+        </select>
+        <input id="custom" type="text" placeholder="Your tagline" hidden />
+      </label>
+      <label><input id="status" type="checkbox" checked /> Status line</label>
+      <button id="replay">Replay</button>
+    </header>
+
+    <p class="intro">
+      Each frame is the app window at 4:3. Click one to see it full size (Esc or click to close).
+      Everything is plain HTML, CSS and inline SVG, so the chosen splash can live in
+      <code>index.html</code> and paint before the app's scripts load.
+    </p>
+
+    <main id="grid"></main>
+
+    <h2 class="sec">Exit into the app: scatter variants (option G)</h2>
+    <p>
+      The splash shows while the app starts, then plays its exit once the library is ready. Here the
+      "ready" moment comes 2.4 s in so the idle loop is visible first; in the app it is whenever
+      startup finishes, with a short minimum so a fast start does not flash. The splash is removed
+      the moment its exit ends, so nothing is left over the app. Click a frame or Play to run it
+      again.
+    </p>
+    <main id="exits"></main>
+
+    <div class="overlay" id="overlay">
+      <span class="hint">Esc or click to close</span>
+    </div>
+
+    <script>
+      const ROWS = [
+        // [y, side offset, side rx, side ry, mid y, mid rx, mid ry]
+        [-26, 4.37, 4.6, 6.4, -28, 3.68, 6.08],
+        [-37, 4.18, 4.4, 6.2, -39, 3.52, 5.89],
+        [-48, 3.89, 4.1, 5.8, -50, 3.28, 5.51],
+        [-58, 3.52, 3.7, 5.3, -60, 2.96, 5.03],
+        [-67, 3.13, 3.3, 4.8, -69, 2.64, 4.56],
+        [-75, 2.75, 2.9, 4.2, -77, 2.32, 3.99],
+      ]
+
+      function sprigInner() {
+        let s =
+          '<path class="stem" pathLength="1" d="M0 0 C1 -30 -1 -60 0 -78"/>' +
+          '<path class="leaf" d="M0 -10 C-9 -14 -15 -22 -16 -30 C-8 -27 -2 -20 0 -12Z"/>' +
+          '<path class="leaf" d="M0 -6 C9 -10 14 -17 15 -24 C7 -22 2 -15 0 -8Z"/>'
+        ROWS.forEach(([y, o, rx, ry, my, mrx, mry], i) => {
+          s += `<g class="bud r${i}" style="--i:${i}"><ellipse cx="${-o}" cy="${y}" rx="${rx}" ry="${ry}" transform="rotate(-28 ${-o} ${y})"/></g>`
+          s += `<g class="bud r${i}" style="--i:${i}"><ellipse cx="${o}" cy="${y}" rx="${rx}" ry="${ry}" transform="rotate(28 ${o} ${y})"/></g>`
+          s += `<g class="bud r${i}" style="--i:${i}"><ellipse cx="0" cy="${my}" rx="${mrx}" ry="${mry}"/></g>`
+        })
+        s += '<g class="bud r6" style="--i:6"><ellipse cx="0" cy="-81" rx="2.4" ry="3.6"/></g>'
+        return s
+      }
+
+      const sprig = (style = '') =>
+        `<svg class="sprig" viewBox="-20 -88 40 92" style="${style}" aria-hidden="true"><g class="sway">${sprigInner()}</g></svg>`
+
+      // Bloom: one keyframe set per bud row so every row pops in turn and all
+      // fade together, in a single 5 s loop.
+      ;(function bloomKeyframes() {
+        let css = ''
+        for (let i = 0; i <= 6; i++) {
+          const start = 16 + i * 6
+          css += `@keyframes bloom${i}{0%,${start}%{transform:scale(0)}${start + 5}%{transform:scale(1.15)}${start + 8}%,100%{transform:scale(1)}}`
+          css += `.o-bloom .r${i}{animation:bloom${i} 5s ease-out infinite}`
+        }
+        const el = document.createElement('style')
+        el.textContent = css
+        document.head.appendChild(el)
+      })()
+
+      const letters = w =>
+        [...w].map((c, i) => `<span style="--i:${i}">${c}</span>`).join('')
+
+      const sheetIcon = () => `
+        <svg class="icon" viewBox="0 0 100 100" aria-hidden="true">
+          <defs><clipPath id="tile"><rect width="100" height="100" rx="22"/></clipPath></defs>
+          <g clip-path="url(#tile)">
+            <rect width="100" height="100" rx="22" fill="var(--tile)"/>
+            <g transform="rotate(-7 50 50)">
+              <rect x="20" y="14" width="60" height="74" rx="5" fill="#fff"/>
+              ${[24, 28, 32, 36, 40].map(y => `<line x1="27" x2="73" y1="${y}" y2="${y}" stroke="#bc9ef2" stroke-width="1.3"/>`).join('')}
+              <g class="note"><ellipse cx="40" cy="36" rx="3.6" ry="2.7" transform="rotate(-20 40 36)" fill="#714fa6"/><line x1="43.3" x2="43.3" y1="35" y2="22" stroke="#714fa6" stroke-width="1.5"/></g>
+              <g class="note n2"><ellipse cx="56" cy="32" rx="3.6" ry="2.7" transform="rotate(-20 56 32)" fill="#714fa6"/><line x1="59.3" x2="59.3" y1="31" y2="20" stroke="#714fa6" stroke-width="1.5"/></g>
+              <rect x="27" y="50" width="40" height="4" rx="2" fill="#cdb8f4"/>
+              <rect x="27" y="59" width="32" height="4" rx="2" fill="#cdb8f4"/>
+              <rect x="27" y="68" width="22" height="4" rx="2" fill="#cdb8f4"/>
+              <rect class="fillbar b1" x="27" y="50" width="40" height="4" rx="2"/>
+              <rect class="fillbar b2" x="27" y="59" width="32" height="4" rx="2"/>
+              <rect class="fillbar b3" x="27" y="68" width="22" height="4" rx="2"/>
+            </g>
+            <g transform="translate(70 92) rotate(-38) scale(0.72)">
+              <g class="sprig"><g class="sway">${sprigInner()}</g></g>
+            </g>
+          </g>
+        </svg>`
+
+      const field = () => {
+        const sprigs = [
+          [30, 4.4, -1.1],
+          [36, 3.6, -2.3],
+          [40, 4.0, 0],
+          [34, 3.3, -0.7],
+          [28, 4.8, -1.9],
+        ]
+        return `<div class="field">${sprigs
+          .map(([h, dur, delay]) =>
+            sprig(`height:${h}cqmin;--dur:${dur}s;--delay:${delay}s`)
+          )
+          .join('')}</div>`
+      }
+
+      const petals = () => {
+        let s = '<div class="petals">'
+        for (let i = 0; i < 26; i++) {
+          const x = (i * 37) % 100
+          const dur = 7 + ((i * 13) % 6)
+          const delay = -((i * 1.7) % dur)
+          const size = 0.9 + ((i * 7) % 5) * 0.25
+          const c = i % 3 ? 'var(--bud)' : 'var(--bud2)'
+          // own scatter direction: outward from the centre line, with some spread
+          const dx = ((x - 50) * 0.9 + (((i * 29) % 21) - 10) * 1.5).toFixed(1)
+          const dy = ((((i * 17) % 23) - 11) * 2.2).toFixed(1)
+          const rot = (((i * 47) % 140) - 70).toString()
+          s += `<span class="petal" style="--x:${x}%;--dur:${dur}s;--delay:${delay}s"><b style="--dx:${dx}cqw;--dy:${dy}cqh;--rot:${rot}deg"><i style="--s:${size}cqmin;--c:${c}"></i></b></span>`
+        }
+        return s + '</div>'
+      }
+
+      const OPTIONS = [
+        {
+          id: 'word',
+          name: 'A. Wordmark',
+          note: 'Big name, letters rise in one by one, then a soft shimmer passes through them on a loop. Tagline fades in under it.',
+          body: () =>
+            `<div class="word big letters">${letters('Lavender')}</div><div class="tag">{tag}</div>`,
+        },
+        {
+          id: 'sway',
+          name: 'B. Swaying sprig',
+          note: 'The sprig from the icon sways in a slow breeze while a lighter shade rolls up through the buds. Calm and endless.',
+          body: () =>
+            `${sprig()}<div class="word">Lavender</div><div class="tag">{tag}</div>`,
+        },
+        {
+          id: 'bloom',
+          name: 'C. Bloom',
+          note: 'The stem draws itself, leaves open, buds pop in row by row up to the tip, then the sprig fades and grows again. Reads like progress.',
+          body: () =>
+            `${sprig()}<div class="word">Lavender</div><div class="tag">{tag}</div>`,
+        },
+        {
+          id: 'field',
+          name: 'D. Field',
+          note: 'Five sprigs of different heights sway out of step, like a small patch of lavender in the wind.',
+          body: () => `${field()}<div class="word">Lavender</div><div class="tag">{tag}</div>`,
+        },
+        {
+          id: 'sheet',
+          name: 'E. Living icon',
+          note: 'The app icon itself: lyric lines fill in like karaoke, the notes bob and the sprig sways. Ties the splash to what the app does.',
+          body: () => `${sheetIcon()}<div class="word">Lavender</div><div class="tag">{tag}</div>`,
+        },
+        {
+          id: 'quiet',
+          name: 'F. Quiet',
+          note: 'Small still icon, name and a thin moving bar with a status line. The most "this is loading" of the set, the least decorative.',
+          body: () =>
+            `<img src="/app-icon.svg" alt=""/><div class="word">Lavender</div><div class="bar"></div><div class="status">{status}</div>`,
+          ownStatus: true,
+        },
+        {
+          id: 'petals',
+          name: 'G. Falling buds',
+          note: 'The wordmark with small buds drifting down behind it. Soft and atmospheric; busier than the others.',
+          body: () =>
+            `${petals()}<div class="word big letters">${letters('Lavender')}</div><div class="tag">{tag}</div>`,
+        },
+      ]
+
+      const state = { theme: 'dark', font: 'serif', tag: 'Words for your sounds', status: true }
+      const STATUS = 'Opening your library…'
+
+      function splashHTML(opt) {
+        const body = opt
+          .body()
+          .replace('{tag}', escapeHTML(state.tag))
+          .replace('{status}', STATUS)
+        const status = opt.ownStatus ? '' : `<div class="status">${STATUS}</div>`
+        return `<div class="splash o-${opt.id}">${body}${status}</div>`
+      }
+
+      function frameClasses() {
+        return `frame t-${state.theme} f-${state.font} ${state.status ? '' : 'hide-status'}`
+      }
+
+      function render() {
+        const grid = document.getElementById('grid')
+        grid.innerHTML = OPTIONS.map(
+          opt => `
+          <section class="card">
+            <div class="${frameClasses()}" data-id="${opt.id}">${splashHTML(opt)}</div>
+            <h2>${opt.name}</h2>
+            <p>${opt.note}</p>
+          </section>`
+        ).join('')
+        const open = overlay.dataset.id
+        if (open) showFull(open)
+      }
+
+      const overlay = document.getElementById('overlay')
+      function showFull(id) {
+        const opt = OPTIONS.find(o => o.id === id)
+        overlay.dataset.id = id
+        overlay.querySelector('.frame')?.remove()
+        overlay.insertAdjacentHTML(
+          'beforeend',
+          `<div class="${frameClasses()}">${splashHTML(opt)}</div>`
+        )
+        overlay.classList.add('open')
+      }
+      function closeFull() {
+        overlay.classList.remove('open')
+        overlay.querySelector('.frame')?.remove()
+        delete overlay.dataset.id
+      }
+
+      const escapeHTML = s =>
+        s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+      document.getElementById('grid').addEventListener('click', e => {
+        const f = e.target.closest('.frame')
+        if (f) showFull(f.dataset.id)
+      })
+      overlay.addEventListener('click', closeFull)
+      document.addEventListener('keydown', e => e.key === 'Escape' && closeFull())
+
+      document.querySelectorAll('.seg').forEach(seg =>
+        seg.addEventListener('click', e => {
+          const b = e.target.closest('button')
+          if (!b) return
+          seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b))
+          state[seg.dataset.ctl] = b.dataset.v
+          render()
+        })
+      )
+      const tagSel = document.getElementById('tagline')
+      const custom = document.getElementById('custom')
+      tagSel.addEventListener('change', () => {
+        custom.hidden = tagSel.value !== '__custom'
+        state.tag = tagSel.value === '__custom' ? custom.value : tagSel.value
+        render()
+      })
+      custom.addEventListener('input', () => {
+        state.tag = custom.value
+        render()
+      })
+      document.getElementById('status').addEventListener('change', e => {
+        state.status = e.target.checked
+        render()
+      })
+      document.getElementById('replay').addEventListener('click', () => {
+        render()
+        renderExits()
+      })
+
+      // ms: when the last piece of the exit has finished; the splash is
+      // removed right then so nothing lingers over the app.
+      const EXITS = [
+        {
+          id: 's1',
+          ms: 650,
+          name: 'S1. Scatter',
+          note: 'The one you picked: the name drifts up and the buds blow outward from the centre and fade.',
+        },
+        {
+          id: 's2',
+          ms: 640,
+          name: 'S2. Burst',
+          note: 'Snappier and wider: the buds fly out fast and far.',
+        },
+        {
+          id: 's3',
+          ms: 750,
+          name: 'S3. Swirl',
+          note: 'The buds spiral outward as they spread, like the field caught in a turning breeze.',
+        },
+        {
+          id: 's4',
+          ms: 640,
+          name: 'S4. Gust',
+          note: 'A sideways wind: the buds are swept off to the right and fade as the name lifts.',
+        },
+        {
+          id: 's5',
+          ms: 700,
+          name: 'S5. Each its own way',
+          note: 'Every bud flies off in its own direction and spin instead of moving as one layer. The most natural looking.',
+        },
+        {
+          id: 's6',
+          ms: 700,
+          name: 'S6. Scatter up',
+          note: 'The buds spread and rise, following the name up and away.',
+        },
+        {
+          id: 's7',
+          ms: 700,
+          name: 'S7. Scatter into focus',
+          note: 'S1 with the app starting blurred and sharpening into focus as the buds blow away.',
+        },
+      ]
+      const timers = new Map()
+
+      function playExit(id, frame) {
+        const ms = EXITS.find(x => x.id === id).ms
+        const g = OPTIONS.find(o => o.id === 'petals')
+        clearTimeout(timers.get(frame))
+        frame.className = `${frameClasses()} exitframe s-fam x-${id}`
+        frame.innerHTML = `<img class="app-under" src="/screenshots/lavender/01-tracks.png" alt="">${splashHTML(g)}`
+        timers.set(
+          frame,
+          setTimeout(() => {
+            frame.classList.add('exiting')
+            timers.set(frame, setTimeout(() => frame.classList.add('done'), ms))
+          }, 2400)
+        )
+      }
+
+      function renderExits() {
+        const box = document.getElementById('exits')
+        box.innerHTML = EXITS.map(
+          x => `
+          <section class="card">
+            <div class="frame exitframe" data-exit="${x.id}"></div>
+            <h2>${x.name}</h2>
+            <p>${x.note}</p>
+            <div class="row"><button data-play="${x.id}">Play</button><button data-full="${x.id}">Full size</button></div>
+          </section>`
+        ).join('')
+        box.querySelectorAll('[data-exit]').forEach(f => playExit(f.dataset.exit, f))
+      }
+
+      document.getElementById('exits').addEventListener('click', e => {
+        const t = e.target.closest('[data-exit],[data-play],[data-full]')
+        if (!t) return
+        if (t.dataset.full) {
+          overlay.querySelector('.frame')?.remove()
+          overlay.insertAdjacentHTML('beforeend', '<div class="frame"></div>')
+          overlay.dataset.id = ''
+          overlay.classList.add('open')
+          playExit(t.dataset.full, overlay.querySelector('.frame'))
+          return
+        }
+        const id = t.dataset.exit || t.dataset.play
+        playExit(id, document.querySelector(`[data-exit="${id}"]`))
+      })
+
+      render()
+      renderExits()
+    </script>
+  </body>
+</html>

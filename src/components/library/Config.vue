@@ -1,16 +1,16 @@
 <template>
   <BaseModal
-    title="Configuration"
+    title="Settings"
     body-class="flex flex-col h-full justify-between overflow-y-auto"
     @before-open="beforeOpenHandler"
     @close="emit('close')"
   >
     <div class="flex flex-col gap-8">
       <div>
-        <label class="group-label mb-4">Common</label>
+        <label class="group-label mb-4">General</label>
 
         <div class="flex flex-col mb-4">
-          <label class="block mb-2 child-label">Download lyrics for:</label>
+          <label class="block mb-2 child-label">Download lyrics for</label>
 
           <RadioButton
             id="download-lyrics-for-all"
@@ -19,7 +19,7 @@
             name="download-lyrics-for"
             value="all"
           >
-            All tracks (overwrite existing lyrics)
+            All tracks (replaces existing lyrics)
           </RadioButton>
 
           <RadioButton
@@ -53,7 +53,7 @@
         </div> -->
 
         <div class="flex flex-col mb-4">
-          <label class="block mb-2 child-label">Theme mode</label>
+          <label class="block mb-2 child-label">Theme</label>
 
           <div class="flex gap-4">
             <RadioButton id="theme-auto" v-model="editingThemeMode" name="theme-mode" value="auto">
@@ -76,7 +76,7 @@
         </div>
 
         <div class="flex flex-col">
-          <label class="block mb-2 child-label" for="lrclib-instance">LRCLIB instance</label>
+          <label class="block mb-2 child-label" for="lrclib-instance">LRCLIB server</label>
           <input
             id="lrclib-instance"
             v-model="editingLrclibInstance"
@@ -87,16 +87,17 @@
         </div>
       </div>
 
+      <LyricsSourceSettings ref="lyricsSourceSettings" />
+
       <div>
         <label class="group-label mb-4">Experimental</label>
 
         <div class="flex items-start">
           <CheckboxButton id="try-embed-lyrics" v-model="tryEmbedLyrics" name="try-embed-lyrics">
             <div class="flex flex-col">
-              <span class="mb-0.5">Enable embed lyrics option</span>
+              <span class="mb-0.5">Allow embedding lyrics in track files</span>
               <span class="text-xs text-yellow-700 dark:text-yellow-400"
-                >This option could corrupt your track files. Make sure to backup your library before
-                enabling it.</span
+                >This can damage track files. Back up your library first.</span
               >
             </div>
           </CheckboxButton>
@@ -108,11 +109,9 @@
           >Scan for new and modified tracks...</a
         >
         <a href="#" class="link" @click="fullScanLibrary"
-          >Reset library and perform full scan...</a
+          >Reset the library and rescan everything...</a
         >
-        <a href="#" class="link" @click="manageDirectories"
-          >Add and remove scanning directories...</a
-        >
+        <a href="#" class="link" @click="manageDirectories">Choose which folders to scan...</a>
       </div>
     </div>
 
@@ -129,8 +128,10 @@ import { useGlobalState } from '../../composables/global-state'
 import { usePlayer } from '@/composables/player.js'
 import RadioButton from '@/components/common/RadioButton.vue'
 import CheckboxButton from '@/components/common/CheckboxButton.vue'
+import LyricsSourceSettings from '@/components/library/config/LyricsSourceSettings.vue'
 
 const { setThemeMode, setLrclibInstance } = useGlobalState()
+const lyricsSourceSettings = ref(null)
 const { volume } = usePlayer()
 
 const emit = defineEmits(['close', 'refreshLibrary', 'fullScanLibrary', 'manageDirectories'])
@@ -153,6 +154,11 @@ const save = async () => {
     lrclibInstance: editingLrclibInstance.value,
     volume: volume.value,
   })
+  try {
+    await lyricsSourceSettings.value?.save()
+  } catch {
+    // Lavender: a toast and the Lyrics source section say why; upstream's settings are saved.
+  }
   setThemeMode(editingThemeMode.value)
   setLrclibInstance(editingLrclibInstance.value)
   emit('close')

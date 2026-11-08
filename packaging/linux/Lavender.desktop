@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Lavender
+Comment=Download synced LRC lyrics, online or from a local LRCLIB database
+Categories=AudioVideo;Audio;Music;
+Exec=Lavender
+Icon=Lavender
+StartupWMClass=Lavender

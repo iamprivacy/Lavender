@@ -14,6 +14,8 @@ use serde::Deserialize;
 pub const LRCLIB_APP_ID: &str = "XrVKboR0WWkjUKWZFHxduclBxCnu4qAXHjLwilNJzP8";
 
 const LRCLIB_APP_ID_HEADER: &str = "Lrclib-App-Id";
+/// Lavender: the App ID above is LRCGET's registration, so Lavender sends none.
+const SEND_APP_ID: bool = false;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const BODY_PREVIEW_LIMIT: usize = 300;
 const MAX_BACKOFF: Duration = Duration::from_secs(8);
@@ -33,10 +35,8 @@ struct Cooldown {
 }
 
 fn user_agent() -> String {
-    format!(
-        "LRCGET v{} (https://github.com/tranxuanthang/lrcget)",
-        env!("CARGO_PKG_VERSION")
-    )
+    // Lavender: identify as Lavender, not LRCGET.
+    crate::local_db::dumps::user_agent()
 }
 
 fn http_client() -> &'static reqwest::Client {
@@ -63,7 +63,7 @@ fn is_official_instance(lrclib_instance: &str) -> bool {
 }
 
 fn app_id_for_instance(lrclib_instance: &str) -> Option<&'static str> {
-    if is_official_instance(lrclib_instance) {
+    if SEND_APP_ID && is_official_instance(lrclib_instance) {
         Some(LRCLIB_APP_ID)
     } else {
         None
@@ -885,10 +885,10 @@ mod tests {
 
     #[test]
     fn adds_app_id_only_for_official_instance() {
-        assert_eq!(
-            app_id_for_instance("https://lrclib.net"),
-            Some(LRCLIB_APP_ID)
-        );
+        // Lavender: no App ID is sent, not even to the official instance.
+        assert_eq!(app_id_for_instance("https://lrclib.net"), None);
+        assert!(is_official_instance("https://lrclib.net"));
+        assert!(!LRCLIB_APP_ID.is_empty());
         assert_eq!(app_id_for_instance("http://127.0.0.1:1234"), None);
     }
 

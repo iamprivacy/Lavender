@@ -31,7 +31,7 @@
               name="popup-download-lyrics-for"
               value="all"
             >
-              <span class="dropdown-label">All tracks (overwrite existing lyrics)</span>
+              <span class="dropdown-label">All tracks (replaces existing lyrics)</span>
             </RadioButton>
             <RadioButton
               id="popup-download-skip-synced"
@@ -49,8 +49,10 @@
             >
               <span class="dropdown-label">Only tracks without any lyrics</span>
             </RadioButton>
+            <UpgradeOption />
           </div>
         </fieldset>
+        <SkipCheckedOption :disabled="downloadLoading || submittingDownload" />
         <hr class="my-2 border-neutral-200 dark:border-neutral-700" />
         <fieldset :disabled="downloadLoading || submittingDownload">
           <legend class="dropdown-section-label">Export options</legend>
@@ -63,6 +65,7 @@
               <span class="dropdown-label">Automatically export lyrics</span>
             </CheckboxButton>
           </label>
+          <ExportHint />
           <template v-if="downloadDraft.autoExportEnabled">
             <label class="dropdown-item">
               <CheckboxButton
@@ -116,6 +119,9 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import CheckboxButton from '@/components/common/CheckboxButton.vue'
 import RadioButton from '@/components/common/RadioButton.vue'
+import ExportHint from '@/components/library/ExportHint.vue'
+import SkipCheckedOption from '@/components/library/SkipCheckedOption.vue'
+import UpgradeOption from '@/components/library/UpgradeOption.vue'
 import { useDownloadOptions } from '@/composables/download-options.js'
 
 const props = defineProps({ session: { type: Object, required: true } })

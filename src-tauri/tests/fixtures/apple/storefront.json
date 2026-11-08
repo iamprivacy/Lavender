@@ -1,0 +1,1 @@
+{"data":[{"id":"us","type":"storefronts","href":"/v1/storefronts/us","attributes":{"name":"United States","defaultLanguageTag":"en-US","supportedLanguageTags":["en-US","es-MX","ar","ru","zh-Hans-CN","fr-FR","ko","pt-BR","vi","zh-Hant-TW"],"explicitContentPolicy":"allowed"}}]}

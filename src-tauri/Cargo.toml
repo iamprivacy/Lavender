@@ -1,12 +1,12 @@
 [package]
 name = "lrcget"
-version = "2.2.2"
-description = "Utility for mass-downloading LRC synced lyrics for your offline music library."
+version = "0.1.0"
+description = "Utility for mass-downloading LRC synced lyrics, online or from a local LRCLIB database."
 authors = ["tranxuanthang"]
 license = "MIT"
-repository = "https://github.com/tranxuanthang/lrcget"
+repository = "https://github.com/iamprivacy/Lavender"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.90"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -43,9 +43,18 @@ tauri-plugin-os = "2.3.2"
 tauri-plugin-shell = "2.3.5"
 tauri-plugin-dialog = "2.7.0"
 tauri-plugin-clipboard-manager = "2.3.2"
+# Lavender: local LRCLIB database support (gzip dump decompression, free-space check)
+flate2 = { version = "1.1", features = ["zlib-rs"] }
+fs4 = "0.13"
+# Lavender: TTML (Apple Music / AMLL) word-synced lyrics
+quick-xml = "0.38"
 # W3C WebDriver server for agent-driven inspection (debug builds only, see AGENTS.md)
 [target.'cfg(debug_assertions)'.dependencies]
 tauri-plugin-webdriver = "0.2"
+
+[dev-dependencies]
+# Lavender: temporary fixture databases in local_db tests
+tempfile = "3"
 
 [features]
 # by default Tauri runs in production mode
@@ -81,3 +90,6 @@ opt-level = 3
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3.1"
+# Lavender: in-app update (signed SHA256SUMS manifest, then the Tauri updater installs)
+tauri-plugin-updater = "2"
+minisign-verify = "0.2"

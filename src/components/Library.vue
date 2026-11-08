@@ -46,6 +46,8 @@
       <div>Loading library...</div>
     </div>
   </div>
+
+  <AppUpdateLayer :ready="!isLoading" />
 </template>
 
 <script setup>
@@ -66,10 +68,12 @@ import MyLrclib from './library/MyLrclib.vue'
 import DownloadViewer from './library/DownloadViewer.vue'
 import ExportViewer from './library/ExportViewer.vue'
 import Config from './library/Config.vue'
-import About from './About.vue'
+import About from './about/LavenderAbout.vue'
+import AppUpdateLayer from './app-update/AppUpdateLayer.vue'
 import { useToast } from 'vue-toastification'
 import { useModal } from 'vue-final-modal'
 import { useExporter } from '@/composables/export.js'
+import { useDownloader } from '@/composables/downloader.js'
 import { useLibraryNavigation } from '@/composables/library-navigation.js'
 
 const { request: downloadRequest } = useDownloadOptions()
@@ -130,6 +134,19 @@ const { open: openDownloadViewer, close: closeDownloadViewer } = useModal({
     },
   },
 })
+
+// Lavender: a download run the last process left unfinished is shown as
+// soon as the backend reports it, so it can be resumed or discarded.
+const { needsAttention: downloadNeedsAttention } = useDownloader()
+watch(
+  downloadNeedsAttention,
+  needed => {
+    if (!needed) return
+    downloadNeedsAttention.value = false
+    openDownloadViewer()
+  },
+  { immediate: true }
+)
 
 const { open: openExportViewer, close: closeExportViewer } = useModal({
   component: ExportViewer,

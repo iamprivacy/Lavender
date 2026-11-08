@@ -1,0 +1,271 @@
+{
+  "result": {
+    "songs": [
+      {
+        "album": {
+          "publishTime": 1445529600000,
+          "size": 1,
+          "artist": {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "",
+            "alias": [],
+            "id": 0,
+            "picId": 0
+          },
+          "copyrightId": 390012,
+          "name": "Hello",
+          "id": 3377030,
+          "picId": 109951168981824640,
+          "mark": 0,
+          "status": 1
+        },
+        "fee": 1,
+        "duration": 295502,
+        "rtype": 0,
+        "ftype": 0,
+        "artists": [
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "Adele",
+            "alias": [],
+            "id": 46487,
+            "picId": 0
+          }
+        ],
+        "copyrightId": 390012,
+        "mvid": 501053,
+        "name": "Hello",
+        "alias": [],
+        "id": 35847388,
+        "mark": 17180139520,
+        "status": 0
+      },
+      {
+        "album": {
+          "publishTime": 1448294400007,
+          "size": 1,
+          "artist": {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "",
+            "alias": [],
+            "id": 0,
+            "picId": 0
+          },
+          "copyrightId": 0,
+          "name": "HeLLo (Marshmello Remix)",
+          "id": 3414500,
+          "picId": 3274345632363581,
+          "mark": 0,
+          "status": 0
+        },
+        "fee": 0,
+        "duration": 250560,
+        "rtype": 0,
+        "ftype": 0,
+        "artists": [
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "Marshmello",
+            "alias": [],
+            "id": 1060019,
+            "picId": 0
+          },
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "Adele",
+            "alias": [],
+            "id": 46487,
+            "picId": 0
+          }
+        ],
+        "copyrightId": 0,
+        "mvid": 5393996,
+        "name": "HeLLo (Marshmello Remix)",
+        "alias": [],
+        "id": 37095960,
+        "mark": 262144,
+        "status": 0
+      },
+      {
+        "album": {
+          "publishTime": 1447948800000,
+          "size": 11,
+          "artist": {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "",
+            "alias": [],
+            "id": 0,
+            "picId": 0
+          },
+          "copyrightId": 390012,
+          "name": "25",
+          "id": 3377045,
+          "picId": 109951168110232012,
+          "mark": 0,
+          "status": 1
+        },
+        "fee": 1,
+        "duration": 295502,
+        "rtype": 0,
+        "ftype": 0,
+        "artists": [
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "Adele",
+            "alias": [],
+            "id": 46487,
+            "picId": 0
+          }
+        ],
+        "copyrightId": 390012,
+        "mvid": 501053,
+        "name": "Hello",
+        "alias": [],
+        "id": 36841430,
+        "mark": 17180139520,
+        "status": 0
+      },
+      {
+        "album": {
+          "publishTime": 1452700800007,
+          "size": 1,
+          "artist": {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "",
+            "alias": [],
+            "id": 0,
+            "picId": 0
+          },
+          "copyrightId": 0,
+          "name": "Hello (NO FACES & Nimbala Bootleg)",
+          "id": 34686272,
+          "picId": 1400777821782920,
+          "mark": 0,
+          "status": 0
+        },
+        "fee": 0,
+        "duration": 246648,
+        "rtype": 0,
+        "ftype": 0,
+        "artists": [
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "No Faces",
+            "alias": [],
+            "id": 142983,
+            "picId": 0
+          },
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "Nimbala",
+            "alias": [],
+            "id": 1149065,
+            "picId": 0
+          },
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "Adele",
+            "alias": [],
+            "id": 46487,
+            "picId": 0
+          }
+        ],
+        "copyrightId": 0,
+        "mvid": 0,
+        "name": "Hello (NO FACES & Nimbala Bootleg)",
+        "alias": [],
+        "id": 411314726,
+        "mark": 262144,
+        "status": 0
+      },
+      {
+        "album": {
+          "publishTime": 1446652800000,
+          "size": 35,
+          "artist": {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "",
+            "alias": [],
+            "id": 0,
+            "picId": 0
+          },
+          "copyrightId": 0,
+          "name": "A State of Trance 739",
+          "id": 34515273,
+          "picId": 3430476281401794,
+          "mark": 0,
+          "status": 0
+        },
+        "fee": 0,
+        "duration": 221753,
+        "rtype": 0,
+        "ftype": 0,
+        "artists": [
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "Adele",
+            "alias": [],
+            "id": 46487,
+            "picId": 0
+          }
+        ],
+        "copyrightId": 0,
+        "mvid": 0,
+        "name": "Hello (Dash Berlin Rework)",
+        "alias": [],
+        "id": 405242132,
+        "mark": 262144,
+        "status": 0
+      }
+    ],
+    "hasMore": true,
+    "songCount": 339
+  },
+  "code": 200,
+  "trp": {
+    "rules": [
+      "search_tab_song::36841430::searchAlg$isGlobalQuality$1",
+      "search_tab_song::35847388::searchAlg$isGlobalQuality$1",
+      "search_tab_song::37095960::searchAlg$isGlobalQuality$1"
+    ]
+  }
+}

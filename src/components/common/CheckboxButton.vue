@@ -14,8 +14,14 @@
       class="inline-flex items-center cursor-pointer select-none"
       :class="disabled ? 'opacity-50 cursor-not-allowed' : ''"
     >
-      <CheckboxMarked v-if="modelValue" class="w-6 h-6 text-neutral-800 dark:text-neutral-400" />
-      <CheckboxBlankOutline v-else class="w-6 h-6 text-neutral-800 dark:text-neutral-400" />
+      <CheckboxMarked
+        v-if="modelValue"
+        class="w-6 h-6 shrink-0 text-neutral-800 dark:text-neutral-400"
+      />
+      <CheckboxBlankOutline
+        v-else
+        class="w-6 h-6 shrink-0 text-neutral-800 dark:text-neutral-400"
+      />
       <span class="ml-1 child-label">
         <slot />
       </span>

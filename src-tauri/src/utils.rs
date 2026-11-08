@@ -1,15 +1,19 @@
+use std::sync::LazyLock;
+
 use collapse::collapse;
 use regex::Regex;
 use secular::lower_lay_string;
 
+static PUNCTUATION_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"[`~!@#$%^&*()_|+\-=?;:",.<>\{\}\[\]\\\/]"#).unwrap());
+static APOSTROPHE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"['’]"#).unwrap());
+
 pub fn prepare_input(input: &str) -> String {
     let mut prepared_input = lower_lay_string(&input);
 
-    let re = Regex::new(r#"[`~!@#$%^&*()_|+\-=?;:",.<>\{\}\[\]\\\/]"#).unwrap();
-    prepared_input = re.replace_all(&prepared_input, " ").to_string();
+    prepared_input = PUNCTUATION_RE.replace_all(&prepared_input, " ").to_string();
 
-    let re = Regex::new(r#"['’]"#).unwrap();
-    prepared_input = re.replace_all(&prepared_input, "").to_string();
+    prepared_input = APOSTROPHE_RE.replace_all(&prepared_input, "").to_string();
 
     prepared_input = prepared_input.to_lowercase();
     prepared_input = collapse(&prepared_input);

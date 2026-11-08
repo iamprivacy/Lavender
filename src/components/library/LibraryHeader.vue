@@ -70,6 +70,17 @@
       </button>
 
       <button
+        v-else-if="isDownloading && downloadPaused"
+        class="button button-normal h-full min-w-[12rem] px-2 text-xs rounded-full"
+        @click.prevent="$emit('showDownloadViewer')"
+      >
+        <div class="flex gap-1">
+          <div>Download paused</div>
+          <div>{{ downloadedCount }}/{{ downloadTotalCount }}</div>
+        </div>
+      </button>
+
+      <button
         v-else-if="isDownloading && downloadedCount !== downloadTotalCount"
         class="button button-working h-full min-w-[12rem] px-2 text-xs rounded-full"
         @click.prevent="$emit('showDownloadViewer')"
@@ -318,7 +329,12 @@ const handleExportClick = async () => {
   }
 }
 
-const { isDownloading, totalCount: downloadTotalCount, downloadedCount } = useDownloader()
+const {
+  isDownloading,
+  isPaused: downloadPaused,
+  totalCount: downloadTotalCount,
+  downloadedCount,
+} = useDownloader()
 
 const {
   isExporting,

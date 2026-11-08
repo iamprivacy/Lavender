@@ -1,0 +1,339 @@
+name: Release
+
+# Builds every platform and attaches the installers to a draft GitHub release.
+# Triggered only by version tags, e.g. v0.1.0 (Lavender's own version, from
+# src-tauri/Cargo.toml). Older tags of the form v2.2.0-local.N still build;
+# their "-local.N" suffix lives only in the tag, never in the app version,
+# because MSI requires purely numeric versions.
+#
+# A manual run with "windows_exe_only" builds just the x64 NSIS setup.exe into
+# a draft named by "draft_tag", for testing one build on a PC. The tag is
+# created only if that draft is ever published, and no SHA256SUMS or
+# latest.json is attached.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      windows_exe_only:
+        description: 'Build only the Windows x64 NSIS setup.exe'
+        type: boolean
+        default: false
+      draft_tag:
+        description: 'Tag name for the draft release (manual runs)'
+        type: string
+        default: ''
+
+env:
+  RELEASE_TAG: ${{ inputs.draft_tag || github.ref_name }}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The draft release is created once here and every later job attaches to it
+  # by id. Letting each matrix job create it raced: four jobs creating the same
+  # tag could produce duplicate drafts or fail with a 422. A re-run reuses the
+  # draft that already exists for the tag.
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the platforms to build
+        id: matrix
+        env:
+          WINDOWS_EXE_ONLY: ${{ inputs.windows_exe_only }}
+        run: |
+          set -euo pipefail
+          if [ "$WINDOWS_EXE_ONLY" = "true" ]; then
+            matrix='[{"platform":"windows-latest","args":"--bundles nsis"}]'
+          else
+            matrix='[
+              {"platform":"macos-latest","args":"--target aarch64-apple-darwin"},
+              {"platform":"macos-latest","args":"--target x86_64-apple-darwin"},
+              {"platform":"ubuntu-24.04","args":""},
+              {"platform":"windows-latest","args":""}
+            ]'
+          fi
+          echo "matrix=$(jq -c . <<<"$matrix")" >> "$GITHUB_OUTPUT"
+
+      # The in-app update needs both halves of the release key: the private key
+      # signs the packages and SHA256SUMS, the public key in tauri.conf.json is
+      # compiled into the app to check them. One without the other would ship
+      # builds that cannot update, so stop before building anything.
+      - name: Check the update key setup
+        env:
+          HAS_UPDATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          pubkey=$(jq -r '.plugins.updater.pubkey // ""' src-tauri/tauri.conf.json)
+          if [ "$HAS_UPDATE_KEY" = "true" ] && [ -z "$pubkey" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is set but plugins.updater.pubkey in src-tauri/tauri.conf.json is empty"
+            exit 1
+          fi
+          if [ "$HAS_UPDATE_KEY" != "true" ] && [ -n "$pubkey" ]; then
+            echo "::error::plugins.updater.pubkey is set but the TAURI_SIGNING_PRIVATE_KEY secret is missing"
+            exit 1
+          fi
+          if [ "$HAS_UPDATE_KEY" != "true" ]; then
+            echo "::warning::No update key: this release gets SHA256SUMS only, and the app links to the release page instead of installing"
+          fi
+
+      # The release body is the tag's section of CHANGELOG.md, which opens
+      # with the star-and-donate banner. A tag without a section
+      # gets a plain download guide and a warning, never a failed build.
+      - name: Write the release body from CHANGELOG.md
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release_manifest.py changelog CHANGELOG.md "$TAG" > body.md
+          if [ ! -s body.md ]; then
+            echo "::warning::CHANGELOG.md has no '## $TAG' section; the release body carries only the download guide"
+          fi
+          cat body.md
+
+      - name: Create or reuse the draft release
+        id: create
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        with:
+          result-encoding: string
+          script: |
+            const fs = require('fs')
+            const tag = process.env.TAG
+            const existing = await github.paginate(github.rest.repos.listReleases, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            })
+            const found = existing.find((release) => release.tag_name === tag)
+            if (found) {
+              core.info(`Reusing release ${found.id} for ${tag}`)
+              return String(found.id)
+            }
+            const guide = [
+              `Lavender ${tag}. See the assets below to download and install.`,
+              '',
+              'Windows: `*-setup.exe` (NSIS, recommended) or `*.msi`.',
+              'Linux: `*.deb`, `*.rpm`, `*.AppImage`, or the `*.flatpak` bundle (`flatpak install --user Lavender*.flatpak`).',
+              'macOS: `*_aarch64.dmg` (Apple Silicon) or `*_x64.dmg` (Intel); unsigned, so allow it in System Settings > Privacy & Security on first launch.',
+              '',
+              'Verify a download with `SHA256SUMS`.',
+            ].join('\n')
+            const body = fs.readFileSync('body.md', 'utf8').trim() || guide
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              name: `Lavender ${tag}`,
+              body,
+              draft: true,
+              prerelease: false,
+            })
+            core.info(`Created draft release ${data.id} for ${tag}`)
+            return String(data.id)
+
+  bundle:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      # Apple Silicon and Intel dmg; deb, rpm, AppImage; NSIS exe and MSI.
+      # See "Pick the platforms to build" above.
+      matrix:
+        include: ${{ fromJSON(needs.create-release.outputs.matrix) }}
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      # Same pinned webkit2gtk packages as upstream's publish workflow.
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libappindicator3-dev librsvg2-dev patchelf libasound2-dev \
+            libwebkit2gtk-4.1-0=2.44.0-2 \
+            libwebkit2gtk-4.1-dev=2.44.0-2 \
+            libjavascriptcoregtk-4.1-0=2.44.0-2 \
+            libjavascriptcoregtk-4.1-dev=2.44.0-2 \
+            gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
+            gir1.2-webkit2-4.1=2.44.0-2
+
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+
+      # A plain tag (v0.1.0) needs nothing more: the app version is the release.
+      # An older v2.2.0-local.N tag compiles its N in, so those builds can still
+      # tell whether a newer Lavender release exists. Signed updater packages are built only
+      # when the release key secret exists.
+      - name: Set the release number and build arguments
+        id: build
+        shell: bash
+        env:
+          HAS_UPDATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              : # a plain version tag carries no release number
+            elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-local\.([0-9]+)$ ]]; then
+              echo "LAVENDER_RELEASE=${BASH_REMATCH[1]}" >> "$GITHUB_ENV"
+            else
+              echo "::error::the tag $GITHUB_REF_NAME is neither vX.Y.Z nor vX.Y.Z-local.N"
+              exit 1
+            fi
+          fi
+          args="${{ matrix.args }}"
+          if [ "$HAS_UPDATE_KEY" = "true" ]; then
+            args="$args --config src-tauri/tauri.updater.conf.json"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+
+      # macOS builds are ad-hoc signed and not notarized unless Apple signing
+      # secrets are added (APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+      # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID).
+      - name: Build and upload bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ steps.build.outputs.args }}
+          # The manifest job writes latest.json once every package is attached.
+          includeUpdaterJson: false
+
+  # Best-effort flatpak bundle. Built with network access from
+  # packaging/flatpak (not Flathub-compliant by design). Runs after the main
+  # bundles so the draft release exists to attach to.
+  flatpak:
+    needs: [create-release, bundle]
+    if: ${{ !inputs.windows_exe_only }}
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build flatpak
+        run: |
+          flatpak-builder --user --install-deps-from=flathub --force-clean \
+            --repo=flatpak-repo flatpak-build packaging/flatpak/io.github.iamprivacy.lrclocalget.yml
+          flatpak build-bundle flatpak-repo "Lavender_${GITHUB_REF_NAME#v}.flatpak" io.github.iamprivacy.lrclocalget
+
+      - name: Upload flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak
+          path: Lavender_*.flatpak
+
+      - name: Attach flatpak to the draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" Lavender_*.flatpak --clobber
+
+  # These are self-distributed builds, so the release carries a checksum
+  # file for every asset. With the release key it is signed, and latest.json
+  # tells the in-app updater which package each platform installs; the app
+  # installs a package only if the signature and its hash both match. Runs
+  # after every asset is attached, including the best-effort flatpak, whether
+  # or not that one succeeded.
+  manifest:
+    needs: [create-release, bundle, flatpak]
+    if: always() && needs.bundle.result == 'success' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HAS_UPDATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the release assets
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir release-assets --pattern '*'
+          rm -f release-assets/SHA256SUMS release-assets/SHA256SUMS.sig release-assets/latest.json
+
+      # Written first, into the asset folder, so SHA256SUMS covers it: the
+      # app accepts a package only when latest.json hashes to the signed
+      # manifest and names that package for the running system.
+      - name: Write latest.json
+        if: env.HAS_UPDATE_KEY == 'true'
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml | head -n 1)
+          python3 .github/scripts/release_manifest.py updater-json \
+            release-assets "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" "$version" > release-assets/latest.json
+          cat release-assets/latest.json
+
+      - name: Write SHA256SUMS
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release_manifest.py sums release-assets "$GITHUB_REF_NAME" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Sign SHA256SUMS and check it against the public key
+        if: env.HAS_UPDATE_KEY == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cli=$(node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
+          npx --yes "@tauri-apps/cli@$cli" signer sign SHA256SUMS
+          sudo apt-get update && sudo apt-get install -y minisign
+          base64 -d SHA256SUMS.sig > SHA256SUMS.minisig
+          jq -r '.plugins.updater.pubkey' src-tauri/tauri.conf.json | base64 -d > release-key.pub
+          minisign -Vm SHA256SUMS -x SHA256SUMS.minisig -p release-key.pub
+
+      - name: Add the Verify section to the release notes
+        run: |
+          set -euo pipefail
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q .body > notes.md
+          pubkey=$(jq -r '.plugins.updater.pubkey // ""' src-tauri/tauri.conf.json)
+          python3 .github/scripts/release_manifest.py notes notes.md SHA256SUMS "$pubkey" > notes-new.md
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes-new.md
+
+      - name: Attach the manifest files
+        run: |
+          set -euo pipefail
+          files=(SHA256SUMS)
+          if [ "$HAS_UPDATE_KEY" = "true" ]; then
+            files+=(SHA256SUMS.sig release-assets/latest.json)
+          fi
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "${files[@]}" --clobber

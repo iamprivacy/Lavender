@@ -1,142 +1,350 @@
-# LRCGET
+# <img src="app-icon.svg" alt="" width="40" align="top"> Lavender
 
-Utility for mass-downloading LRC synced lyrics for your offline music library.
+Lavender downloads synced lyrics (`.lrc`) for your whole music library in one
+go. It started as a fork of [LRCGET](https://github.com/tranxuanthang/lrcget)
+and does everything LRCGET does, plus a lot more:
 
-LRCGET will scan every files in your chosen directory for music files, then and try to download lyrics to a LRC files having the same name and save them to the same directory as your music files.
+- **Look up lyrics offline** from your own copy of the
+  [LRCLIB database](https://lrclib.net/db-dumps), instead of sending one web
+  request per track.
+- **Find more lyrics.** With the local database, a careful matcher catches
+  tracks that LRCLIB's exact lookup misses because of small tag differences.
+  Optional extra sources fill in what LRCLIB doesn't have at all.
+- **Get better lyrics.** When a song has several uploads in the database,
+  Lavender picks the best one. It can also upgrade the lyrics you already
+  have, from plain to synced and from synced to word-synced.
+- **Big libraries welcome.** You can pause downloads, and they survive a
+  restart or a dropped connection. With the local database, repeat runs skip
+  tracks that were already checked.
 
-LRCGET is the official client of [LRCLIB](https://lrclib.net) service.
+It's free and open source (MIT), and it runs on Windows, macOS and Linux.
 
-## Download
-
-🎉 Latest version: v2.2.1
-
-Visit the [release page](https://github.com/tranxuanthang/lrcget/releases) to download.
-
-### Windows
-
-EXE installer (recommended): [LRCGET_2.2.1_x64-setup.exe](https://github.com/tranxuanthang/lrcget/releases/download/2.2.1/LRCGET_2.2.1_x64-setup.exe)
-
-MSI installer: [LRCGET_2.2.1_x64_en-US.msi](https://github.com/tranxuanthang/lrcget/releases/download/2.2.1/LRCGET_2.2.1_x64_en-US.msi)
-
-### Linux
-
-Flatpak build (recommended, for most Linux distros):
-
-<a href='https://flathub.org/en/apps/net.lrclib.lrcget'><img width='120' alt='Get LRCGET on Flathub' src='https://flathub.org/api/badge?locale=en'/></a>
-
-Deb packages (for Ubuntu 24.04+ and Linux Mint 22+): [LRCGET_2.2.1_amd64.deb](https://github.com/tranxuanthang/lrcget/releases/download/2.2.1/LRCGET_2.2.1_amd64.deb)
-
-RPM packages (for Fedora, openSUSE, etc.): [LRCGET-2.2.1-1.x86_64.rpm](https://github.com/tranxuanthang/lrcget/releases/download/2.2.1/LRCGET-2.2.1-1.x86_64.rpm)
-
-AppImage (for most Linux distros): [LRCGET_2.2.1_amd64.AppImage](https://github.com/tranxuanthang/lrcget/releases/download/2.2.1/LRCGET_2.2.1_amd64.AppImage)
-
-### macOS
-
-Mac x64 (Intel): [LRCGET_2.2.1_x64.dmg](https://github.com/tranxuanthang/lrcget/releases/download/2.2.1/LRCGET_2.2.1_x64.dmg)
-
-Mac Apple Silicon: [LRCGET_2.2.1_aarch64.dmg](https://github.com/tranxuanthang/lrcget/releases/download/2.2.1/LRCGET_2.2.1_aarch64.dmg)
+> [!IMPORTANT]
+> Like LRCGET, Lavender keeps downloaded lyrics in its own library first. Other
+> music players only see them once they're exported as `.lrc` or `.txt` files
+> next to your music. See [Saving lyrics next to your music](#saving-lyrics-next-to-your-music).
 
 ## Screenshots
 
-![01.png](https://raw.githubusercontent.com/tranxuanthang/lrcget/9e0578bd9411fcc024a56d2f1108701751c5ec3a/screenshots/01.png)
+![Library with synced lyrics playing](screenshots/lavender/01-tracks.png)
 
 <details>
-<summary>Click to expand more screenshots</summary>
+<summary>More screenshots</summary>
 
-![02.png](https://raw.githubusercontent.com/tranxuanthang/lrcget/9e0578bd9411fcc024a56d2f1108701751c5ec3a/screenshots/02.png)
+A mass download using LRCLIB alone, as in LRCGET, finds 52 of 57 tracks. The
+five misses are songs LRCLIB has no lyrics for:
 
-![03.png](https://raw.githubusercontent.com/tranxuanthang/lrcget/9e0578bd9411fcc024a56d2f1108701751c5ec3a/screenshots/03.png)
+![Download log with LRCLIB only](screenshots/lavender/03-lrclib-only.png)
 
-![04.png](https://raw.githubusercontent.com/tranxuanthang/lrcget/9e0578bd9411fcc024a56d2f1108701751c5ec3a/screenshots/04.png)
+With NetEase Cloud Music and QQ Music turned on, the same download finds all
+57:
+
+![Download log with the extra sources](screenshots/lavender/04-extra-sources.png)
+
+![Synced lyrics following playback](screenshots/lavender/02-lyrics.png)
+
+![Synced lyrics editor](screenshots/lavender/05-editor.png)
 
 </details>
 
-## Donation
+## Lavender vs LRCGET
 
-Toss a coin to your developer?
+| | LRCGET | Lavender |
+|---|---|---|
+| Lyrics from online LRCLIB | ✅ | ✅ (works exactly the same) |
+| Lyrics from a local LRCLIB database, offline | | ✅ |
+| Download and update that database in the app | | ✅ (parallel, resumable) |
+| Matches tracks with messy tags (feat., remaster, several artists...) | | ✅ * |
+| Picks the best of several uploads for a song | | ✅ * |
+| Upgrade lyrics you already have | | ✅ * |
+| Extra sources: AMLL, Apple Music, NetEase, QQ Music | | ✅ (optional, off by default) |
+| Word-synced lyrics from LRCLIB: badges, per-word highlighting, editor | ✅ | ✅ |
+| Word-synced lyrics from the extra sources, word timestamps in `.lrc` export | | ✅ |
+| Prefers uncensored lyrics for explicit songs | | ✅ ** |
+| Pause, resume and survive a restart mid-download | | ✅ |
+| Skip tracks already checked on the next run | | ✅ * |
+| Player, editor, publishing to LRCLIB, My LRCLIB | ✅ | ✅ |
+| Export `.lrc` / `.txt`, embed in MP3 and FLAC | ✅ | ✅ |
 
-**GitHub Sponsors (Recommended - 100% of your support goes to the developer):**
+\* With the local database. \*\* With the local database and the extra
+sources; online LRCLIB answers are used as they come.
 
-https://github.com/sponsors/tranxuanthang
+Lavender has its own app ID, settings and library, so you can keep both apps
+installed side by side.
 
-**Buy Me a Coffee:**
+## What Lavender adds
 
-https://www.buymeacoffee.com/thangtran
+### A local LRCLIB database
 
-**Paypal:**
+Point Lavender at a copy of the LRCLIB database dump and every lookup (mass
+downloads, Search Lyrics, My LRCLIB) runs against your own disk.
 
-https://paypal.me/tranxuanthang98
+- The basic lookup follows the LRCLIB server's own rules, so on its own it
+  finds what lrclib.net would have found when the dump was made. The matching
+  below goes further.
+- Tracks the local database can't answer can go to online LRCLIB instead (on
+  by default).
+- If the drive with the database goes missing, Lavender tells you once, uses
+  online LRCLIB in the meantime (when that fallback is on) and picks the
+  database up again when it's back.
+- The database is opened read-only, so it can live on an external drive.
+- **Check for updates** finds the latest dump, and Lavender downloads it over
+  up to 8 connections. You can stop and resume the download later, even
+  after closing the app. Lavender then unpacks it, checks it, and only then switches over from your
+  current database. It checks free disk space before it starts.
 
-**Monero (XMR):**
+### Better matching
 
+These work with the local database. The extra sources are held to the same
+title, length and artist rules.
+
+- **Tolerant matching** retries a miss while allowing for common tag
+  differences: several artists joined with commas or "&", "(feat. ...)" on one
+  side only, version tags like "(Radio Edit)" or "[2011 Remaster]", explicit
+  badges, or the same recording filed under another album. It never guesses:
+  title, length and artist must still line up, and the download log says how
+  each tolerant match was made so you can spot-check it.
+- **The best of several uploads.** Many songs have more than one synced
+  upload. Lavender ranks them by artist, album, synced over plain, and then by
+  the lyrics themselves: broken timing, lyrics that stop early or a stray
+  credits line count against an upload, and timing that most uploads agree on
+  counts for it. Search Lyrics shows this order and marks the "Best match".
+- **The right performance.** A studio track gets the studio lyrics, not a live
+  or acoustic take's, and a track tagged "(Live)" gets the live take's when the
+  database has it.
+- **Instrumentals stay instrumental.** A track titled "(Instrumental)" is marked
+  instrumental instead of getting someone's wrong upload.
+- **Uncensored by default.** When a song exists as both the explicit and the
+  clean version, you get the uncensored lyrics unless the file's title or
+  album says Clean. A setting lets you always pick one or the other. This
+  covers the extra sources too.
+
+### Upgrade the lyrics you already have
+
+With the local database, **Upgrade to the best match** is an extra choice in
+the download popup. It goes through your library and:
+
+- finds lyrics for tracks that have none;
+- replaces plain lyrics with synced ones when it can find them (locally, then
+  online and from the extra sources you turned on);
+- replaces synced lyrics with word-synced ones or a clearly better upload, but
+  only when your current lyrics came from the database;
+- replaces lyrics with masked words ("b\*\*\*h") when it finds an uncensored
+  text, whoever wrote them.
+
+Synced lyrics you edited yourself or got elsewhere are kept, and so are
+word-synced ones, unless they mask words and the Lyrics edition setting wants
+them uncensored. The download log says why each track was kept.
+
+### Extra lyrics sources (optional)
+
+When LRCLIB has nothing, Lavender can ask the **AMLL TTML database**, **Apple
+Music**, **NetEase Cloud Music** and **QQ Music**, in that order. They all work
+in online mode too.
+
+- All of them are **off by default**. When you turn one on, it gets the title
+  and artist of each track LRCLIB couldn't answer, and nothing else. The AMLL
+  database is searched through NetEase and QQ Music, so turning it on sends
+  those two the same details.
+- The AMLL database, Apple Music and sometimes NetEase have **word-synced**
+  lyrics. The player highlights each word as it's sung, and `.lrc` export can
+  include the word timestamps (enhanced LRC) if you want it to. Search Lyrics
+  marks word-synced results with a "Word Synced" badge.
+- Apple Music needs your own subscription. You sign in with Apple in a private
+  window inside Lavender, and Lavender keeps only the sign-in token. That API
+  is unofficial and using it is against Apple Music's terms, so it's your call.
+- These services' APIs are unofficial and may stop working at any time. See
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for exactly what is sent
+  where.
+
+### Downloads that hold up
+
+- **Pause and resume** a mass download. If the app is closed or crashes, the
+  run comes back as "Download interrupted" and picks up where it stopped.
+- **Dropped connection?** Lavender waits and tries the same track again instead
+  of marking the rest of the library as not found.
+- **No waiting with the local database.** Online mass downloads keep
+  LRCGET's pace of about half a second between tracks; local lookups skip
+  that pause.
+- **Retry not found** queues the misses of a finished run again.
+- **Skip what's already checked.** With the local database, Lavender
+  remembers which tracks the current database couldn't answer and leaves them
+  out next time. A track is checked again after you retag it, install a newer
+  dump or turn on more options, and online misses are retried after 14 days. You can clear this memory in
+  Settings at any time.
+
+### Everything else
+
+- With the lyrics source set to Online LRCLIB and the extra sources off (the
+  defaults), lookups work exactly as in LRCGET, including its pace and its
+  waits when LRCLIB asks to slow down. Publishing and flagging always go to
+  online LRCLIB.
+- An optional update check (off until you turn it on) that installs a new
+  release only after its signed checksums match. Every release also ships a
+  signed `SHA256SUMS` file.
+- Its own lavender look and icon, so the two apps are easy to tell apart.
+
+## Download
+
+Get the latest version from the
+[Releases page](https://github.com/iamprivacy/Lavender/releases).
+
+| Platform | File |
+|----------|------|
+| Windows (x64) | `*-setup.exe` (recommended) or `*.msi` |
+| Linux (x86_64) | `*.deb` (Ubuntu 24.04+, Mint 22+), `*.rpm` (Fedora, openSUSE), `*.AppImage` or `*.flatpak` |
+| macOS | `*_aarch64.dmg` (Apple Silicon) or `*_x64.dmg` (Intel) |
+
+You can ignore the other files on a release (`.sig`, `.app.tar.gz`,
+`latest.json`); they're for the in-app update.
+
+To install the Flatpak bundle:
+
+```shell
+flatpak install --user Lavender*.flatpak
 ```
-43ZN5qDdGQhPGthFnngD8rjCHYLsEFBcyJjDC1GPZzVxWSfT8R48QCLNGyy6Z9LvatF5j8kSgv23DgJpixJg8bnmMnKm3b7
-```
 
-**Litecoin (LTC):**
+The builds aren't code signed yet, so your system may warn you the first time:
 
-```
-ltc1q7texq5qsp59gclqlwf6asrqmhm98gruvz94a48
-```
+- **Windows:** click **More info**, then **Run anyway**.
+- **macOS:** open the app once, then click **Open Anyway** in System Settings >
+  Privacy & Security.
+
+The release notes list every file's hash and how to check a download.
+
+## Saving lyrics next to your music
+
+Lavender saves lyrics in its own library first. The built-in player, the
+editor and Upgrade all work from there, but other players need files next to
+the music. To write them:
+
+- **While downloading:** tick **Automatically export lyrics** in the popup that
+  **Download all lyrics** opens. Lavender remembers the choice.
+- **Later:** click **Export** in the header.
+
+Tick both **Synced lyrics (.lrc)** and **Plain lyrics (.txt)**. Each track then
+gets one file: `.lrc` if it has synced lyrics, `.txt` if it only has plain
+ones. Careful: ticking only `.txt` replaces existing `.lrc` files with plain
+text.
+
+Lyric files already next to your music are read in when Lavender scans your
+folders.
+
+## Using the local database
+
+1. Open **Settings** from the ⋮ menu at the top right and set **Lyrics
+   source** to **Local database**.
+2. Click **Check for updates**, choose where to download the archive and where
+   to keep the database, and press **Download the database**. Already have a
+   dump? Click **Browse** and pick the `.sqlite3` / `.db` file, or the `.gz`
+   archive to unpack it in the app.
+3. Save, then download lyrics as usual.
+
+To update later, click **Check for updates**, then **Update the database**.
+
+**Mind the disk space.** The archive is about 48 GB, and Lavender estimates
+the unpacked database at around 120 GB. During an update you need room for both, since your current
+database stays in use until the new one is ready. Tick **Delete the archive
+after decompressing** and **Delete the old database after updating** to get
+that space back afterwards.
+
+A fast internal drive gives the quickest lookups, but an external one works
+fine.
 
 ## Troubleshooting
 
-**Audio cannot be played in Linux (Ubuntu and other distros)**
+**Lyrics show in Lavender but not in other players.**
+They haven't been exported yet. See
+[Saving lyrics next to your music](#saving-lyrics-next-to-your-music).
 
-Try to install `pipewire-alsa` package. For example, in Ubuntu or Debian-based distros:
+**No audio on Linux.**
+Install `pipewire-alsa`, for example `sudo apt install pipewire-alsa` on
+Ubuntu or Debian.
 
-```
-sudo apt install pipewire-alsa
-```
+**The app doesn't open on Windows.**
+Lavender needs Microsoft WebView2. If you're on Windows 10 LTSC or removed
+Edge with a script, reinstalling Edge or the WebView2 runtime usually fixes
+it.
 
-**App won't open in Windows 10/11**
+**Invisible scrollbar on KDE Plasma.**
+In System Settings > Appearance > Global Theme > Application Style >
+Configure GNOME/GTK Application Style..., switch from Breeze to something else
+(Adwaita, for example).
 
-If you are using Windows 10 LTSC, or have tried running some scripts to debloat Windows 10 (which will uninstall Microsoft Edge and its webview component), you might have issues as LRCGET depends on WebView2. Reinstalling Microsoft Edge might fix the problem (see issue https://github.com/tranxuanthang/lrcget/issues/45).
+**"The local LRCLIB database has no search index".**
+Some dumps ship without one. Mass downloads still work and title searches use
+exact matching; keyword searches go to online LRCLIB if the online fallback is
+on.
 
-**Scrollbar is invisible in Linux (KDE Plasma 5/6)**
+**Coming from LRC-local-GET?**
+That was Lavender's old name. Your settings, library and database setting
+carry over, but the two show up as separate apps. If you uninstall
+LRC-local-GET on Windows, leave "Delete the application data" unticked, since
+Lavender reads from the same place.
 
-The exact cause is still unknown, but it can be fixed by going to System Settings > Appearance > Global Theme > Application Style > Configure GNOME/GTK Application Style... > Change to something other than breeze (Awaita or Default) > Apply (see comment https://github.com/tranxuanthang/lrcget/issues/44#issuecomment-1962998268)
+## Building from source
 
-## Contact
-
-If you prefer to contact by email:
-
-[hoangtudevops@protonmail.com](mailto:hoangtudevops@protonmail.com)
-
-## Development
-
-LRCGET is made with [Tauri](https://tauri.app).
-
-To start developing the application, you need to do the [prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites) steps according to your operating system.
-
-For example, you need the following components to start the development in Windows:
-
-- Microsoft Visual Studio C++ Build Tools
-- Rust 1.81.0 or higher
-- NodeJS v16.18.0 or higher
-
-Start the development window with the following command:
-
-```shell
-cd lrcget
-npm install
-npm run tauri dev
-```
-
-## Building
-
-Start the build process with the following command:
+Lavender is a [Tauri](https://tauri.app) v2 app: Rust in `src-tauri/`, Vue 3
+in `src/`. Install the
+[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your
+system (Rust 1.90 or newer and a current Node.js LTS), then:
 
 ```shell
-cd lrcget
+git clone https://github.com/iamprivacy/Lavender.git
+cd Lavender
 npm install
-npm run tauri build
+npm run tauri dev      # development window
+npm run tauri build    # installers, in src-tauri/target/release/bundle/
 ```
 
-Your built binaries are located at:
+Run the checks:
 
-```
-./src-tauri/target/release/
+```shell
+npm run lint
+npm test
+npm run build            # cargo needs the built frontend in dist/
+cd src-tauri && cargo test
 ```
 
-For more detailed instruction, follow the [building guide](https://tauri.app/v1/guides/building/) to build the application according to your OS platform.
+The tests never download the real dump; they build a small database with the
+server's real schema. `python3 tools/build_fixture_db.py <folder>` writes one
+(plus a `.gz` copy) for trying the local database in a dev build.
+
+Contributors: [PLAN.md](PLAN.md) explains the design,
+[FORK_CHANGES.md](FORK_CHANGES.md) lists every change to a file that also
+exists in LRCGET (so merges from upstream stay easy), and
+[src-tauri/ARCHITECTURE.md](src-tauri/ARCHITECTURE.md) and
+[src/ARCHITECTURE.md](src/ARCHITECTURE.md) describe the backend and frontend.
+[CHANGELOG.md](CHANGELOG.md) lists what changed in each release.
+
+---
+
+## Star History
+
+<!-- star-history:start -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/star-history/star-history-dark.svg">
+  <img alt="Star history" src="assets/star-history/star-history-light.svg">
+</picture>
+<!-- star-history:end -->
+
+---
+
+## Acknowledgements
+
+Lavender wouldn't exist without **tranxuanthang**, who created
+[LRCGET](https://github.com/tranxuanthang/lrcget) and
+[LRCLIB](https://lrclib.net). LRCGET is the app Lavender is built on, and
+LRCLIB is the open lyrics library behind its lookups, freely shared as a
+database dump. Thank you for building both and keeping them open. If Lavender
+is useful to you, please consider
+[sponsoring tranxuanthang](https://github.com/sponsors/tranxuanthang) and
+contributing lyrics to LRCLIB.
+
+LRCGET is MIT licensed, and so is the LRCLIB server code that Lavender's local
+lookup is ported from. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+for these and the other credits.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

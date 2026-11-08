@@ -1,0 +1,32 @@
+{
+  "code": 0,
+  "data": {
+    "keyword": "zzqqxxjjkk nonexistenttrack qqzz Nobody",
+    "priority": 0,
+    "qc": [],
+    "semantic": {
+      "curnum": 0,
+      "curpage": 1,
+      "list": [],
+      "totalnum": 0
+    },
+    "song": {
+      "curnum": 0,
+      "curpage": 1,
+      "list": [],
+      "totalnum": 0
+    },
+    "tab": 0,
+    "taglist": [],
+    "totaltime": 0,
+    "zhida": {
+      "chinesesinger": 0,
+      "type": 0
+    }
+  },
+  "message": "no results",
+  "notice": "",
+  "subcode": 10003,
+  "time": 1792393218,
+  "tips": ""
+}

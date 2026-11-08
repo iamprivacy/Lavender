@@ -88,6 +88,7 @@ onMounted(async () => {
   loading.value = false
   await loadGlobalState()
   darkModeHandle(themeMode.value)
+  window.lavenderSplash?.hide()
   downloadNext()
   exportNext()
   drainNotifications()

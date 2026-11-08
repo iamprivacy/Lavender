@@ -51,6 +51,8 @@ Module-level ref composables (singletons by design):
 
 **Boot Flow**: `main.js` → Vue app init → `App.vue` checks `get_init()` → shows `ChooseDirectory.vue` (setup) or `Library.vue` (main). Loads config, applies theme, starts downloader loop.
 
+**Start-up splash (Lavender)**: `index.html` loads `public/splash.css` and `public/splash.js` as plain files (no bundling), so the splash in `#splash` paints with the first frame, before `main.js` runs. Once `App.vue` has applied the theme it calls `window.lavenderSplash.hide()`; the splash stays at least 2.5 s (counted from when it is drawn, not from when the window opened), plays its exit (~1 s) and removes itself. If `hide()` never comes (a start-up error) it steps aside after 30 s. The window's `backgroundColor` in `tauri.conf.json` is the splash's dark, so there is no white flash. The design was chosen in `labs/splash-lab.html`.
+
 ## UI Architecture
 
 **Main Shells**:
@@ -179,3 +181,137 @@ This enables the V2 lyrics editor to support playback for:
 **Framework**: Vitest. Run `npm test` (once) or `npm run test:watch` (watch mode).
 
 Tests live next to the source files they exercise (e.g. `word-tokenizer.test.js` for `word-tokenizer.js`). Add tests for any utilities that involve non-trivial branching logic (e.g. parsing, tokenization, transformations). `export-workflows.test.js` verifies shared preferences and batch snapshots with mocked commands. `download-options.test.js` uses a minimal Vue renderer to exercise all four album/artist trigger setups, recycling/unmount lifecycle, target isolation, and scope queries without a DOM or real downloads. DOM component tests are not yet set up.
+
+
+## Lavender: Lyrics source settings
+
+Fork addition. `components/library/config/LyricsSourceSettings.vue` is mounted by
+`Config.vue` (one tag; the dialog's Save also awaits the component's `save()`
+inside a `try`/`catch`, so a failed fork save never stops upstream's save or the
+dialog closing). A failed save raises a toast and stays shown at the top of the
+section (`saveError` in `lyrics-source.js`) until a later save succeeds.
+It offers Online LRCLIB or Local database, a Browse button (`.sqlite3`, `.db`,
+`.gz`), an inline decompress panel for `.gz` archives (destination folder,
+free-space estimate, progress bar, Cancel, delete-archive option), a validation
+card (path, size, track and lyrics counts, dump date, search index; the counts
+show "counting..." until `count_local_db_rows` answers, since opening a database
+no longer counts its rows) and the
+"If not found locally, try online LRCLIB" checkbox. Below the Local-only block,
+shown in both modes, an "Extra sources" group switches on the sources asked only
+when LRCLIB has nothing (the AMLL TTML database, Apple Music, NetEase Cloud
+Music, then QQ Music, all off by default) and whether plain lyrics from them
+are accepted (`extraAmll`, `extraApple`, `extraNetease`, `extraQq`,
+`extraPlainLyrics` in the fork config). Apple Music opens a Sign in button
+(`apple_sign_in`: the backend opens a private sign-in window and returns the
+`media-user-token` cookie, which fills the field and is checked), a masked field
+for pasting that cookie by hand (`appleUserToken`), a note on what the sign-in
+does with the password and that the endpoint is against Apple's terms, and a
+Check button (`check_apple_token`, which names the account's storefront). A "Lyrics
+edition" group (`lyricsEdition`: `follow-file`, `explicit` or `clean`) says which cut of a
+song the local database and the extra sources should prefer. An "Export" group
+holds "Write word timestamps into exported .lrc files" (`exportWordTimestamps`).
+`composables/lyrics-source.js` holds the shared fork config and local
+database status and listens to the `local-db-status` event; `MyLrclib.vue` uses
+it to say when searches also use the local database. Tests:
+`composables/lyrics-source.test.js`.
+
+In Local mode a mass download first drops the tracks the database already
+missed, and the Upgrade choice also the tracks an earlier Upgrade run looked
+at and kept: `download-options.js` calls `applySkipChecked`
+(`composables/skip-checked.js`), which asks `filter_checked_track_ids` only
+when the lyrics source is Local and the setting is on, with `upgrade` and
+`exportFormats` (`exportFormatTokens` of the auto-export snapshot) for the
+Upgrade choice only, so the other choices make exactly the old call. If that call fails the queue is kept whole. If the filter
+removed every track, the popup stays open and `SkipCheckedOption.vue` (the
+"Skip tracks already not found" checkbox in the popup) says how many were
+already tried, with a "Download them anyway" link that reruns the same download
+once without the filter. Tests: `composables/skip-checked.test.js` and a case
+in `download-options.test.js`. When it removed only some, the count is passed
+to `addToQueue`, kept by the backend run (`skippedCount`), and
+`DownloadViewer.vue` shows a SKIPPED figure next to KEPT. `SkipCheckedOption.vue`
+and the settings page count the remembered upgrade checks (`upgradeCount`
+from `get_checked_count`) with the misses. A kept Upgrade track whose files could not be written (its message
+carries "export failed") is logged and counted as a failure.
+
+Under the popup's "Automatically export lyrics" checkbox, `ExportHint.vue` says,
+while the box is off, that the lyrics stay in Lavender until exported: other
+players read only files next to the music. Shown in both modes; text only.
+
+## Lavender: About dialog and in-app update
+
+Fork addition. `Library.vue` opens `components/about/LavenderAbout.vue` instead
+of upstream's `About.vue` (left untouched). It holds `AppUpdateSection.vue`
+(current and newest version, Check for updates, Install update or a link to the
+release page with the reason when this copy cannot install, progress with
+Cancel, Restart now, and the "Check for updates automatically" toggle with its
+"Every launch / Once a day" cadence), `SupportSection.vue` (the Buy Me a Coffee
+button, drawn locally so About makes no request) and Lavender's repo, Issues
+page and LRCGET credit.
+
+`components/app-update/AppUpdateLayer.vue` is mounted once by `Library.vue`. On
+mount it loads the update info and runs `startup_app_update_check` (the backend
+decides whether a check is due), then shows `UpdateOptInPrompt.vue` when
+`shouldPrompt` is set and the library is on screen. `UpdateToast.vue` follows
+the install phases: offer (Install, or View when this copy cannot install),
+verifying and downloading (progress bar, Cancel), ready (Restart now, Later)
+and failed. Install and Restart are disabled while a mass download or an
+export runs (`composables/library-busy.js`), in the toast and in the About
+section alike. The toast opens only after automatic checks, never for a release
+whose notice was closed, and not while a restart is pending.
+
+`composables/app-update.js` holds the shared state (info, last check, progress
+from the `app-update-progress` event) and wraps the commands. Tests:
+`composables/app-update.test.js`.
+
+## Lavender: the download run lives in the backend
+
+Fork addition. Upstream's `composables/downloader.js` held the queue, the
+counts and the log in module refs and ran the loop (`downloadNext`) in the
+page, so the webview's "try again" error page, a crashed renderer or a
+restart wiped the run with no record of which tracks were done. The run is
+now owned by the backend (`src-tauri/src/download_run.rs`) and
+`downloader.js` only mirrors it:
+
+- `downloadNext()` (still called once by `App.vue` at boot, name kept so
+  `App.vue` is untouched) attaches: it listens to the `download-run` event
+  first, then reads `get_download_run`, so nothing announced in between is
+  missed. Each event carries the summary and, for a processed track, its
+  log entry; the log keeps the latest 100 lines, as before. Entries are keyed
+  by their queue position, and a new outcome for a known position (a track
+  queued again by Retry) replaces its line. The backend numbers every change
+  (`revision`); a snapshot is taken when it is at least the held revision,
+  an event or a command's answer only when newer, so the two arriving in
+  either order cannot leave the dialog on an old state, and a late event of
+  a cleared run cannot bring it back (`startOver` keeps the revision and the
+  clear command answers with the one above).
+- `addToQueue(trackIds, autoExport, upgrade, skipped)` calls
+  `start_download_run` with a copy of the export snapshot; the backend keeps
+  the options per item, so later submissions cannot change queued batches.
+  `download-options.js` awaits it inside its `try`, so a refused queue shows
+  in the popup. `startOver` and `stopDownloading` call `clear_download_run`;
+  `pauseDownloading`, `resumeDownloading` and `retryFailed` call the matching
+  commands and re-read the run when one fails; `retryFailed` re-reads it
+  after success too, so the requeued tracks leave the log at once.
+- Exposed state: the counts upstream's components read (`successCount`,
+  `failureCount`, `keptCount`, `skippedCount`, `totalCount`,
+  `downloadedCount`, `downloadProgress`, `isDownloading` = a run exists),
+  plus `isActive` (running right now; `library-busy.js` uses it, so a paused
+  or finished run no longer blocks the in-app update), `isPaused`,
+  `isInterrupted`, `isFinished`, `waiting` (the backend's outage text) and
+  `needsAttention`, set once at attach time when the backend reports a run
+  the last process left unfinished; `Library.vue` watches it and opens the
+  Download viewer.
+- `DownloadViewer.vue` titles itself Downloading, Download paused, Download
+  interrupted or Downloaded, shows a notice for the interrupted (done and
+  left counts), paused (including a run the backend paused on a database
+  error) and waiting states, and offers Pause and Stop while
+  running, Discard and Resume while paused, "Retry not found" (when any
+  failed) and Finish when done. Closing a finished dialog clears the run, as
+  upstream's Finish did; closing a running or paused one leaves it.
+  `LibraryHeader.vue` shows "Download paused n/m" for a paused run.
+- Tests: `composables/downloader.test.js` (attach, events, the log cap,
+  attention for an interrupted run, the commands and their arguments, the
+  re-read after a failed action); the queue cases in
+  `download-options.test.js`, `export-workflows.test.js` and
+  `skip-checked.test.js` now assert on the `start_download_run` and
+  `filter_checked_track_ids` calls.

@@ -69,8 +69,11 @@ describe('submitted export choices', () => {
       skipTracksWithSyncedLyrics: true,
       skipTracksWithPlainLyrics: false,
     })
-    const downloader = (await import('./downloader.js')).useDownloader()
-    expect(downloader.downloadQueue.value[0].autoExport).toEqual({
+    const started = () =>
+      invoke.mock.calls
+        .filter(([command]) => command === 'start_download_run')
+        .map(([, args]) => args)
+    expect(started()[0].autoExport).toEqual({
       plainText: false,
       syncedLrc: false,
       embedIntoTrack: true,
@@ -88,8 +91,7 @@ describe('submitted export choices', () => {
     expect(
       invoke.mock.calls.find(([command]) => command === 'set_export_preferences')[1]
     ).not.toHaveProperty('exportEmbedded')
-    expect(downloader.downloadQueue.value[1].autoExport.embedIntoTrack).toBe(false)
-    expect(downloader.downloadQueue.value[0].autoExport.embedIntoTrack).toBe(true)
+    expect(started()[0].autoExport.embedIntoTrack).toBe(false)
     await state.openExportOptions()
     expect(state.exportDraft.value.embedIntoTrack).toBe(true)
     expect(state.canExport.value).toBe(false)
@@ -131,45 +133,37 @@ describe('submitted export choices', () => {
       skipTracksWithSyncedLyrics: true,
       skipTracksWithPlainLyrics: true,
     })
-    expect(invoke).toHaveBeenLastCalledWith('get_track_ids', {
+    expect(invoke).toHaveBeenCalledWith('get_track_ids', {
       searchQuery: '',
       syncedLyricsTracks: false,
       plainLyricsTracks: false,
       instrumentalTracks: false,
       noLyricsTracks: true,
     })
+    expect(invoke).toHaveBeenLastCalledWith('start_download_run', {
+      trackIds: [],
+      autoExport: null,
+    })
   })
 
-  it('isolates download batches and keeps an export failure in the existing success log', async () => {
+  it('isolates download batches: each one reaches the backend run with its own snapshot', async () => {
     const downloader = (await import('./downloader.js')).useDownloader()
-    const message = 'Synced lyrics downloaded; LRC export failed: permission denied'
-    invoke.mockImplementation(async (command, args) => {
-      if (command === 'get_track') return { id: args.trackId, title: 'Song', artist_name: 'Artist' }
-      if (args.trackId === 2) throw 'Not found'
-      return message
-    })
+    invoke.mockResolvedValue(null)
     const choice = { plainText: true, syncedLrc: false, embedIntoTrack: true }
-    downloader.addToQueue([1, 2], choice)
+    await downloader.addToQueue([1, 2], choice)
     choice.plainText = false
     choice.syncedLrc = true
     choice.embedIntoTrack = false
-    downloader.addToQueue([3], choice)
-    downloader.addToQueue([4]) // Other download entry points do not inherit remembered formats.
-    void downloader.downloadNext()
-    await vi.advanceTimersByTimeAsync(5)
+    await downloader.addToQueue([3], choice)
+    await downloader.addToQueue([4]) // Other download entry points do not inherit remembered formats.
     const calls = invoke.mock.calls
-      .filter(([name]) => name === 'download_lyrics')
+      .filter(([name]) => name === 'start_download_run')
       .map(([, args]) => args)
     expect(calls).toEqual([
-      { trackId: 1, autoExport: { plainText: true, syncedLrc: false, embedIntoTrack: true } },
-      { trackId: 2, autoExport: { plainText: true, syncedLrc: false, embedIntoTrack: true } },
-      { trackId: 3, autoExport: { plainText: false, syncedLrc: true, embedIntoTrack: false } },
-      { trackId: 4, autoExport: null },
+      { trackIds: [1, 2], autoExport: { plainText: true, syncedLrc: false, embedIntoTrack: true } },
+      { trackIds: [3], autoExport: { plainText: false, syncedLrc: true, embedIntoTrack: false } },
+      { trackIds: [4], autoExport: null },
     ])
-    expect(downloader.successCount.value).toBe(3)
-    expect(downloader.failureCount.value).toBe(1)
-    expect(downloader.downloadedCount.value).toBe(4)
-    expect(downloader.log.value[0]).toMatchObject({ status: 'success', message })
   })
 
   it('keeps manual batch formats and writer order when later submissions change them', async () => {

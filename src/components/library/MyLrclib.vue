@@ -11,6 +11,7 @@
         class="text-neutral-800 dark:text-neutral-300 rounded-full px-2 py-1 bg-neutral-50 dark:bg-neutral-900"
         >{{ lrclibInstance }}</span
       >
+      <span v-if="isLocal" class="ml-1">and the local LRCLIB database</span>
     </div>
 
     <form
@@ -48,8 +49,10 @@ import Magnify from '~icons/mdi/magnify'
 import SearchResult from './my-lrclib/SearchResult.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useGlobalState } from '../../composables/global-state'
+import { useLyricsSource } from '@/composables/lyrics-source.js'
 
 const { lrclibInstance } = useGlobalState()
+const { isLocal } = useLyricsSource()
 
 const props = defineProps({
   isActive: {

@@ -7,7 +7,7 @@ body {
 }
 
 :root {
-  --slider-rail: #ffd9e2;
+  --slider-rail: theme('colors.hoa.100');
 }
 
 .dark {
@@ -39,7 +39,7 @@ body {
 }
 
 .button {
-  @apply transition uppercase font-bold flex gap-1 items-center justify-center;
+  @apply transition uppercase font-bold flex gap-1 items-center justify-center whitespace-nowrap;
 }
 
 .button-normal {
@@ -209,12 +209,12 @@ body {
 }
 
 .v-popper--theme-lrcget-tooltip .v-popper__inner {
-  background: #f35697;
+  background: theme('colors.hoa.1100');
   color: #ffffff;
 }
 
 .v-popper--theme-lrcget-tooltip .v-popper__arrow-outer {
-  border-color: #f35697;
+  border-color: theme('colors.hoa.1100');
 }
 
 .v-popper--theme-lrcget-dropdown .v-popper__inner {

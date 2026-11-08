@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.iamprivacy.lrclocalget</id>
+  <launchable type="desktop-id">Lavender.desktop</launchable>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Lavender</name>
+  <developer id="io.github.iamprivacy">
+    <name>iamprivacy</name>
+  </developer>
+  <summary>Download synced LRC lyrics, online or from a local LRCLIB database</summary>
+  <description>
+    <p>Lavender is a fork of LRCGET that can look lyrics up in a local copy of the LRCLIB database dump instead of, or before, the online LRCLIB API.</p>
+    <p>It scans your chosen directory for music files, finds matching synced lyrics, and saves them as LRC files next to your music or embeds them into the files.</p>
+    <p>With the lyrics source set to Online and the extra sources off, lyrics are looked up exactly as LRCGET looks them up.</p>
+  </description>
+  <url type="homepage">https://github.com/iamprivacy/Lavender</url>
+  <url type="vcs-browser">https://github.com/iamprivacy/Lavender</url>
+  <url type="bugtracker">https://github.com/iamprivacy/Lavender/issues</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-07">
+      <description>
+        <p>First Lavender release, based on LRCGET 2.2.2.</p>
+        <ul>
+          <li>Look lyrics up offline in a local copy of the LRCLIB database, with tolerant matching and a content score that picks the best upload</li>
+          <li>Upgrade lyrics you already have, from plain to synced and from synced to word-synced, keeping the ones you edited</li>
+          <li>Optional extra sources: the AMLL TTML database, Apple Music, NetEase Cloud Music and QQ Music</li>
+          <li>A Lyrics edition setting that prefers uncensored lyrics for explicit songs</li>
+          <li>Mass downloads that pause, resume and survive a restart or a dropped connection</li>
+          <li>An opt-in update check that installs only signed releases</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  <provides>
+    <binary>Lavender</binary>
+  </provides>
+</component>

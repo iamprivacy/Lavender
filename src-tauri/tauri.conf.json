@@ -24,22 +24,22 @@
     ],
     "linux": {
       "deb": {
-        "desktopTemplate": "../packaging/linux/lrcget.desktop",
+        "desktopTemplate": "../packaging/linux/Lavender.desktop",
         "files": {
-          "/usr/share/metainfo/lrcget.metainfo.xml": "../packaging/linux/lrcget.metainfo.xml"
+          "/usr/share/metainfo/io.github.iamprivacy.lrclocalget.metainfo.xml": "../packaging/linux/io.github.iamprivacy.lrclocalget.metainfo.xml"
         },
         "depends": []
       },
       "appimage": {
         "files": {
-          "/usr/share/metainfo/lrcget.metainfo.xml": "../packaging/linux/lrcget.metainfo.xml"
+          "/usr/share/metainfo/io.github.iamprivacy.lrclocalget.metainfo.xml": "../packaging/linux/io.github.iamprivacy.lrclocalget.metainfo.xml"
         },
         "bundleMediaFramework": false
       },
       "rpm": {
-        "desktopTemplate": "../packaging/linux/lrcget.desktop",
+        "desktopTemplate": "../packaging/linux/Lavender.desktop",
         "files": {
-          "/usr/share/metainfo/lrcget.metainfo.xml": "../packaging/linux/lrcget.metainfo.xml"
+          "/usr/share/metainfo/io.github.iamprivacy.lrclocalget.metainfo.xml": "../packaging/linux/io.github.iamprivacy.lrclocalget.metainfo.xml"
         },
         "depends": []
       }
@@ -56,10 +56,14 @@
     "shortDescription": "Utility for mass-downloading LRC synced lyrics for your offline music library.",
     "targets": "all"
   },
-  "productName": "LRCGET",
-  "mainBinaryName": "LRCGET",
-  "identifier": "net.lrclib.lrcget",
-  "plugins": {},
+  "productName": "Lavender",
+  "mainBinaryName": "Lavender",
+  "identifier": "io.github.iamprivacy.lrclocalget",
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1RTBBRTAwMTA5MDk1MzEKUldReGxaQVFBSzdnNWZFUnM5cnNhK1k5cWdXY2FZNWtCb0NyQjh3dHRRd0kwd3A2YlV2T2VkaUkK"
+    }
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [
@@ -70,7 +74,8 @@
         "width": 1024,
         "height": 768,
         "resizable": true,
-        "title": "LRCGET",
+        "title": "Lavender",
+        "backgroundColor": "#0a0a0a",
         "decorations": true,
         "transparent": false,
         "useHttpsScheme": true

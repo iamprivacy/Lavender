@@ -1,0 +1,59 @@
+{
+  "result": {
+    "songs": [
+      {
+        "album": {
+          "publishTime": 1780675200000,
+          "size": 1,
+          "artist": {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "",
+            "alias": [],
+            "id": 0,
+            "picId": 0
+          },
+          "copyrightId": 7001,
+          "name": "Can't Give Up",
+          "id": 379569942,
+          "picId": 109951173317889106,
+          "mark": 0,
+          "status": 1
+        },
+        "fee": 1,
+        "duration": 128573,
+        "rtype": 0,
+        "ftype": 0,
+        "artists": [
+          {
+            "img1v1Url": "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg",
+            "musicSize": 0,
+            "albumSize": 0,
+            "img1v1": 0,
+            "name": "ZXXXQ",
+            "alias": [],
+            "id": 123839301,
+            "picId": 0
+          }
+        ],
+        "copyrightId": 7001,
+        "mvid": 0,
+        "name": "Can't Give Up",
+        "alias": [],
+        "id": 3389049406,
+        "mark": 17180008448,
+        "status": 0
+      }
+    ],
+    "hasMore": false,
+    "songCount": 1
+  },
+  "code": 200,
+  "trp": {
+    "rules": [
+      "search_tab_song::3389049406::searchAlg$isGlobalQuality$1"
+    ]
+  }
+}

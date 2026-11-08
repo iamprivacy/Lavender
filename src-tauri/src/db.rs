@@ -51,10 +51,6 @@ pub fn initialize_database(app_handle: &AppHandle) -> Result<Connection, rusqlit
         }
     }
 
-    if let Err(error) = backfill_track_lyrics_presence(&db) {
-        eprintln!("Failed to backfill track lyrics presence flags: {}", error);
-    }
-
     Ok(db)
 }
 
@@ -101,7 +97,9 @@ pub fn backfill_track_lyrics_presence(db: &Connection) -> Result<()> {
         updates.push((lyricsfile_id, presence));
     }
 
-    // Update lyricsfiles records with calculated presence
+    // Update lyricsfiles records with calculated presence, in one transaction
+    // so a large backfill is one write instead of one per row.
+    let transaction = db.unchecked_transaction()?;
     for (lyricsfile_id, presence) in updates {
         db.execute(
             "UPDATE lyricsfiles SET has_plain_lyrics = ?, has_synced_lyrics = ?, has_word_synced_lyrics = ?, instrumental = ? WHERE id = ?",
@@ -114,6 +112,7 @@ pub fn backfill_track_lyrics_presence(db: &Connection) -> Result<()> {
             ),
         )?;
     }
+    transaction.commit()?;
 
     Ok(())
 }

@@ -114,22 +114,19 @@ describe('shared Download targets', () => {
       target.name = 'Recycled during save'
       finishSave(config)
       await submission
-      expect(invoke).toHaveBeenLastCalledWith(`get_${type}_track_ids`, {
+      expect(invoke).toHaveBeenCalledWith(`get_${type}_track_ids`, {
         [`${type}Id`]: 7,
         withoutPlainLyrics: true,
         withoutSyncedLyrics: true,
       })
-      const queue = (await import('./downloader.js')).useDownloader().downloadQueue.value
-      expect(queue).toEqual([
-        {
-          trackId: 70,
-          autoExport: {
-            plainText: false,
-            syncedLrc: true,
-            embedIntoTrack: true,
-          },
+      expect(invoke).toHaveBeenCalledWith('start_download_run', {
+        trackIds: [70],
+        autoExport: {
+          plainText: false,
+          syncedLrc: true,
+          embedIntoTrack: true,
         },
-      ])
+      })
     }
   )
 
@@ -145,7 +142,7 @@ describe('shared Download targets', () => {
       options.downloadDraft.value.downloadLyricsFor = mode
       await options.downloadAllLyrics()
       if (type === 'library') {
-        expect(invoke).toHaveBeenLastCalledWith('get_track_ids', {
+        expect(invoke).toHaveBeenCalledWith('get_track_ids', {
           searchQuery: '',
           syncedLyricsTracks: !synced,
           plainLyricsTracks: !plain,
@@ -153,13 +150,87 @@ describe('shared Download targets', () => {
           noLyricsTracks: true,
         })
       } else {
-        expect(invoke).toHaveBeenLastCalledWith(`get_${type}_track_ids`, {
+        expect(invoke).toHaveBeenCalledWith(`get_${type}_track_ids`, {
           [`${type}Id`]: 3,
           withoutPlainLyrics: plain,
           withoutSyncedLyrics: synced,
         })
       }
     }
+  })
+
+  it('upgrade mode queues every track without saving the all filter', async () => {
+    const options = (await import('./download-options.js')).useDownloadOptions()
+    invoke.mockImplementation(async command => (command === 'get_config' ? config : []))
+    await options.open({ type: 'library' }, {})
+    options.downloadDraft.value.downloadLyricsFor = 'upgrade'
+    await options.downloadAllLyrics()
+    const [, saved] = invoke.mock.calls.find(([command]) => command === 'set_export_preferences')
+    expect(saved).not.toHaveProperty('skipTracksWithSyncedLyrics')
+    expect(saved).not.toHaveProperty('skipTracksWithPlainLyrics')
+    expect(invoke).toHaveBeenCalledWith('get_track_ids', {
+      searchQuery: '',
+      syncedLyricsTracks: true,
+      plainLyricsTracks: true,
+      instrumentalTracks: true,
+      noLyricsTracks: true,
+    })
+    expect(invoke).toHaveBeenLastCalledWith('start_download_run', {
+      trackIds: [],
+      autoExport: { plainText: false, syncedLrc: true, embedIntoTrack: true },
+      upgrade: true,
+    })
+  })
+
+  it('upgrade mode in local mode asks the filter to drop the tracks it already kept', async () => {
+    const { useLyricsSource } = await import('./lyrics-source.js')
+    useLyricsSource().setForkConfig({ lyricsSource: 'local', skipChecked: true })
+    const options = (await import('./download-options.js')).useDownloadOptions()
+    invoke.mockImplementation(async command => {
+      if (command === 'get_config') return config
+      if (command === 'filter_checked_track_ids') return [71]
+      return [70, 71]
+    })
+    await options.open({ type: 'library' }, {})
+    options.downloadDraft.value.downloadLyricsFor = 'upgrade'
+    await options.downloadAllLyrics()
+    expect(invoke).toHaveBeenCalledWith('filter_checked_track_ids', {
+      trackIds: [70, 71],
+      upgrade: true,
+      exportFormats: ['lrc', 'embedded'],
+    })
+    expect(invoke).toHaveBeenLastCalledWith('start_download_run', {
+      trackIds: [71],
+      autoExport: { plainText: false, syncedLrc: true, embedIntoTrack: true },
+      upgrade: true,
+      skipped: 1,
+    })
+  })
+
+  it('keeps the popup open when the local filter removed every track', async () => {
+    const { useLyricsSource } = await import('./lyrics-source.js')
+    useLyricsSource().setForkConfig({ lyricsSource: 'local', skipChecked: true })
+    const options = (await import('./download-options.js')).useDownloadOptions()
+    invoke.mockImplementation(async command => {
+      if (command === 'get_config') return config
+      if (command === 'filter_checked_track_ids') return []
+      return [70, 71]
+    })
+    await options.open({ type: 'album', id: 3, name: 'Target' }, {})
+    await options.downloadAllLyrics()
+    const started = () => invoke.mock.calls.filter(([command]) => command === 'start_download_run')
+    expect(started()).toHaveLength(0)
+    expect(options.request.value).not.toBeNull()
+    const { useSkipChecked } = await import('./skip-checked.js')
+    expect(useSkipChecked().allSkipped.value).toBe(2)
+
+    useSkipChecked().downloadAnyway()
+    await options.downloadAllLyrics()
+    expect(started().map(([, args]) => args.trackIds)).toEqual([[70, 71]])
+    expect(options.request.value).toBeNull()
+    expect(
+      invoke.mock.calls.filter(([command]) => command === 'filter_checked_track_ids')
+    ).toHaveLength(1)
   })
 
   it('ignores late hydration and old close events after a new target opens', async () => {

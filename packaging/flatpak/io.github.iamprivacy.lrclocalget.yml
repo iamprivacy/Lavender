@@ -1,0 +1,53 @@
+# Flatpak manifest for Lavender.
+#
+# This manifest is for building a .flatpak bundle in this repo's own CI. It
+# allows network access during the build (npm and cargo fetch dependencies
+# directly), so it is NOT Flathub-compliant. Flathub requires offline builds
+# with generated cargo-sources.json / node-sources.json; see the upstream
+# Flathub repo (flathub/net.lrclib.lrcget) for that approach.
+id: io.github.iamprivacy.lrclocalget
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node24
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: Lavender
+rename-desktop-file: Lavender.desktop
+rename-appdata-file: io.github.iamprivacy.lrclocalget.metainfo.xml
+rename-icon: Lavender
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  - --socket=pulseaudio
+  - --share=network
+  # The local LRCLIB database usually lives on a large or external drive.
+  - --filesystem=host
+
+modules:
+  - name: lavender
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/node24/bin:/usr/lib/sdk/rust-stable/bin
+      build-args:
+        - --share=network
+      env:
+        CARGO_HOME: /run/build/lavender/cargo
+        npm_config_cache: /run/build/lavender/npm-cache
+    build-commands:
+      - npm install --no-audit --no-fund
+      - npm run tauri build -- --no-bundle
+      - install -Dm755 -t /app/bin src-tauri/target/release/Lavender
+      - install -Dm644 -t /app/share/applications packaging/linux/Lavender.desktop
+      - install -Dm644 -t /app/share/metainfo packaging/linux/io.github.iamprivacy.lrclocalget.metainfo.xml
+      - install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/Lavender.png
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - node_modules
+          - dist
+          - src-tauri/target

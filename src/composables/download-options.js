@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { useExportPreferences } from './export-preferences.js'
 import { useDownloader } from './downloader.js'
 import { downloadModeFromConfig, downloadFlagsForMode } from '@/utils/download-filter.js'
+import { applySkipChecked, skippedEverything } from './skip-checked.js'
+import { isUpgradeMode } from './upgrade-downloads.js'
 
 // One workflow/popup for the library, virtualized rows, and detail views.
 const request = shallowRef(null)
@@ -79,11 +81,15 @@ const downloadAllLyrics = async () => {
   submittingDownload.value = true
   const session = request.value
   const draft = { ...downloadDraft.value }
-  const filter = downloadFlagsForMode(draft.downloadLyricsFor)
+  // Lavender: the Upgrade choice queues every track and decides per track.
+  const upgrade = isUpgradeMode(draft.downloadLyricsFor)
+  const filter = downloadFlagsForMode(upgrade ? 'all' : draft.downloadLyricsFor)
   const embedEnabled = tryEmbedLyrics.value
   try {
+    // Upgrade reads every track but is not a filter choice, so it leaves the
+    // remembered skip flags alone instead of saving "all" as the default.
     await useExportPreferences().save({
-      ...filter,
+      ...(upgrade ? {} : filter),
       autoExportEnabled: draft.autoExportEnabled,
       ...(draft.autoExportEnabled
         ? {
@@ -111,16 +117,20 @@ const downloadAllLyrics = async () => {
         withoutSyncedLyrics: filter.skipTracksWithSyncedLyrics,
       })
     }
-    useDownloader().addToQueue(
+    const autoExport = draft.autoExportEnabled
+      ? {
+          plainText: draft.plainText,
+          syncedLrc: draft.syncedLrc,
+          embedIntoTrack: draft.embedIntoTrack && embedEnabled,
+        }
+      : null
+    const before = ids.length
+    ids = await applySkipChecked(
       ids,
-      draft.autoExportEnabled
-        ? {
-            plainText: draft.plainText,
-            syncedLrc: draft.syncedLrc,
-            embedIntoTrack: draft.embedIntoTrack && embedEnabled,
-          }
-        : null
+      upgrade ? { upgrade, exportFormats: exportFormatTokens(autoExport) } : undefined
     )
+    if (skippedEverything()) return
+    await useDownloader().addToQueue(ids, autoExport, upgrade, before - ids.length)
     close(session)
   } catch (error) {
     if (request.value === session) downloadError.value = String(error)
@@ -128,6 +138,17 @@ const downloadAllLyrics = async () => {
     submittingDownload.value = false
     isBuildingQueue.value = false
   }
+}
+
+// Lavender: the files an auto-export snapshot writes, as the backend's
+// memory of Upgrade checks names them.
+export const exportFormatTokens = autoExport => {
+  if (!autoExport) return []
+  const tokens = []
+  if (autoExport.plainText) tokens.push('txt')
+  if (autoExport.syncedLrc) tokens.push('lrc')
+  if (autoExport.embedIntoTrack) tokens.push('embedded')
+  return tokens
 }
 
 export function useDownloadOptions() {
