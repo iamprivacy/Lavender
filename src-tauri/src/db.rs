@@ -1197,6 +1197,9 @@ pub fn get_artist_track_ids(
 }
 
 pub fn clean_library(db: &Connection) -> Result<()> {
+    // Lavender: foreign keys are off, so ON DELETE SET NULL never runs; unlink
+    // by hand or the rescan's new track ids pick up other songs' lyrics.
+    db.execute("UPDATE lyricsfiles SET track_id = NULL WHERE track_id IS NOT NULL", ())?;
     db.execute("DELETE FROM tracks WHERE 1", ())?;
     db.execute("DELETE FROM albums WHERE 1", ())?;
     db.execute("DELETE FROM artists WHERE 1", ())?;
@@ -1228,15 +1231,7 @@ pub fn delete_tracks_fts_by_ids_tx(ids: &[i64], tx: &rusqlite::Transaction) -> R
     if ids.is_empty() {
         return Ok(());
     }
-    let placeholders: Vec<String> = (0..ids.len()).map(|i| format!("?{}", i + 1)).collect();
-    let query = format!(
-        "DELETE FROM tracks_fts WHERE track_id IN ({})",
-        placeholders.join(", ")
-    );
-    let mut statement = tx.prepare(&query)?;
-    let params: Vec<rusqlite::types::Value> = ids.iter().map(|&id| id.into()).collect();
-    statement.execute(rusqlite::params_from_iter(params.iter()))?;
-    Ok(())
+    delete_ids_in_chunks(tx, "DELETE FROM tracks_fts WHERE track_id IN", ids)
 }
 
 pub fn insert_album_fts_tx(
@@ -1256,15 +1251,7 @@ pub fn delete_albums_fts_by_ids_tx(ids: &[i64], tx: &rusqlite::Transaction) -> R
     if ids.is_empty() {
         return Ok(());
     }
-    let placeholders: Vec<String> = (0..ids.len()).map(|i| format!("?{}", i + 1)).collect();
-    let query = format!(
-        "DELETE FROM albums_fts WHERE album_id IN ({})",
-        placeholders.join(", ")
-    );
-    let mut statement = tx.prepare(&query)?;
-    let params: Vec<rusqlite::types::Value> = ids.iter().map(|&id| id.into()).collect();
-    statement.execute(rusqlite::params_from_iter(params.iter()))?;
-    Ok(())
+    delete_ids_in_chunks(tx, "DELETE FROM albums_fts WHERE album_id IN", ids)
 }
 
 pub fn insert_artist_fts_tx(
@@ -1283,15 +1270,7 @@ pub fn delete_artists_fts_by_ids_tx(ids: &[i64], tx: &rusqlite::Transaction) -> 
     if ids.is_empty() {
         return Ok(());
     }
-    let placeholders: Vec<String> = (0..ids.len()).map(|i| format!("?{}", i + 1)).collect();
-    let query = format!(
-        "DELETE FROM artists_fts WHERE artist_id IN ({})",
-        placeholders.join(", ")
-    );
-    let mut statement = tx.prepare(&query)?;
-    let params: Vec<rusqlite::types::Value> = ids.iter().map(|&id| id.into()).collect();
-    statement.execute(rusqlite::params_from_iter(params.iter()))?;
-    Ok(())
+    delete_ids_in_chunks(tx, "DELETE FROM artists_fts WHERE artist_id IN", ids)
 }
 
 /// Get all tracks with their fingerprint data for comparison
@@ -1320,30 +1299,21 @@ pub fn delete_tracks_by_ids(ids: &[i64], conn: &Connection) -> Result<()> {
         return Ok(());
     }
 
-    // Delete from FTS index first
-    {
-        let placeholders: Vec<String> = (0..ids.len()).map(|i| format!("?{}", i + 1)).collect();
-        let query = format!(
-            "DELETE FROM tracks_fts WHERE track_id IN ({})",
-            placeholders.join(", ")
-        );
-        let mut statement = conn.prepare(&query)?;
-        let params: Vec<rusqlite::types::Value> = ids.iter().map(|&id| id.into()).collect();
-        statement.execute(rusqlite::params_from_iter(params.iter()))?;
-    }
+    // Delete from FTS index first, then the tracks
+    delete_ids_in_chunks(conn, "DELETE FROM tracks_fts WHERE track_id IN", ids)?;
+    delete_ids_in_chunks(conn, "DELETE FROM tracks WHERE id IN", ids)
+}
 
-    // Delete tracks
-    {
-        let placeholders: Vec<String> = (0..ids.len()).map(|i| format!("?{}", i + 1)).collect();
-        let query = format!(
-            "DELETE FROM tracks WHERE id IN ({})",
-            placeholders.join(", ")
-        );
-        let mut statement = conn.prepare(&query)?;
-        let params: Vec<rusqlite::types::Value> = ids.iter().map(|&id| id.into()).collect();
-        statement.execute(rusqlite::params_from_iter(params.iter()))?;
+/// Runs `DELETE ... IN (...)` in batches so a large id list never exceeds
+/// SQLite's limit on bound variables (switching library folders deletes
+/// every track of the old folder at once).
+fn delete_ids_in_chunks(conn: &Connection, prefix: &str, ids: &[i64]) -> Result<()> {
+    for chunk in ids.chunks(500) {
+        let placeholders = vec!["?"; chunk.len()].join(", ");
+        let query = format!("{prefix} ({placeholders})");
+        conn.prepare_cached(&query)?
+            .execute(rusqlite::params_from_iter(chunk.iter()))?;
     }
-
     Ok(())
 }
 
@@ -1482,13 +1452,15 @@ pub fn insert_track_from_metadata_tx(
     content_hash: &str,
     artist_id: i64,
     album_id: i64,
+    preferred_id: Option<i64>,
     tx: &rusqlite::Transaction,
 ) -> Result<i64> {
     use crate::utils::prepare_input;
 
     tx.execute(
-        "INSERT INTO tracks (file_path, file_name, title, title_lower, album_id, artist_id, duration, track_number, file_size, modified_time, content_hash, scan_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tracks (id, file_path, file_name, title, title_lower, album_id, artist_id, duration, track_number, file_size, modified_time, content_hash, scan_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params![
+            preferred_id,
             &metadata.file_path,
             &metadata.file_name,
             &metadata.title,
@@ -1785,6 +1757,15 @@ pub fn find_tracks_by_metadata(
     }
 
     Ok(tracks)
+}
+
+/// Lavender: an in-memory library database at the latest migration, for
+/// tests outside this file.
+#[cfg(test)]
+pub fn migrated_test_connection() -> Connection {
+    let mut conn = Connection::open_in_memory().unwrap();
+    Migrations::from_directory(&MIGRATIONS_DIR).unwrap().to_latest(&mut conn).unwrap();
+    conn
 }
 
 #[cfg(test)]

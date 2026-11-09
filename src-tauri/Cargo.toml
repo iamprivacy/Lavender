@@ -1,6 +1,6 @@
 [package]
 name = "lrcget"
-version = "0.1.0"
+version = "0.1.1"
 description = "Utility for mass-downloading LRC synced lyrics, online or from a local LRCLIB database."
 authors = ["tranxuanthang"]
 license = "MIT"

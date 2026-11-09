@@ -25,6 +25,26 @@ A bullet that closes a reported issue names it in full and links to it:
 `(#11)`. These notes are read outside the repo, where a bare number is neither
 a link nor obviously an issue. A test enforces it.
 
+## 🗂️ v0.1.1 (2026-11-09)
+
+<p align="center">
+  <strong>💜 If you enjoy Lavender, a star on this repo goes a long way, and if you'd like to help me afford to keep developing it, consider donating.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/iamprivacy"><img src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
+### ✨ Added
+
+- 📂 Removing a library folder keeps its scan: add the folder back and its tracks return with their lyrics and lookup history without reading every file's tags again, and only files that changed in the meantime are rescanned. The folder chooser lists these saved scans with their track counts, with a button to add one back or forget it.
+- 🍺 Macs can install and update Lavender with Homebrew: `brew install --cask iamprivacy/lavender/lavender`.
+
+### 🐛 Fixed
+
+- 🎤 Lyrics stay with their song after a full rescan, or after music is removed and other music added; before, a new track could show the lyrics of a removed one.
+- 🐛 Switching to a different library folder and refreshing no longer fails with a long error full of question marks when the old folder held many tracks.
+
 ## 🗂️ v0.1.0 (2026-11-07)
 
 <p align="center">

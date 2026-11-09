@@ -20,6 +20,7 @@ pub mod edition;
 pub mod extra;
 pub mod gunzip;
 pub mod metadata_parse;
+pub mod parked;
 pub mod queries;
 pub mod schema;
 pub mod source;

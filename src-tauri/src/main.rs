@@ -271,6 +271,10 @@ async fn set_directories(
 ) -> Result<(), String> {
     let conn_guard = app_state.db.lock().unwrap();
     let conn = conn_guard.as_ref().unwrap();
+    // Lavender: remember removed folders so their scan is kept, not deleted
+    let previous = db::get_directories(conn).map_err(|err| err.to_string())?;
+    local_db::parked::remember_removed_folders(&previous, &directories, conn)
+        .map_err(|err| err.to_string())?;
     db::set_directories(directories, conn).map_err(|err| err.to_string())?;
 
     Ok(())
@@ -1987,6 +1991,8 @@ async fn main() {
             read_text_file,
             segment_words,
             local_db::commands::get_fork_config,
+            local_db::commands::list_parked_folders,
+            local_db::commands::forget_parked_folder,
             local_db::commands::set_fork_config,
             local_db::commands::validate_local_db,
             local_db::commands::get_local_db_status,

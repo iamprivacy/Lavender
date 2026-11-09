@@ -640,3 +640,19 @@ mod tests {
         }
     }
 }
+
+/// Removed library folders whose scan is kept for when they come back.
+#[tauri::command]
+pub async fn list_parked_folders(app_handle: AppHandle) -> Result<Vec<super::parked::ParkedFolder>, String> {
+    app_handle
+        .db(super::parked::list_parked_folders)
+        .map_err(|err| err.to_string())
+}
+
+/// Drops one removed folder's saved scan.
+#[tauri::command]
+pub async fn forget_parked_folder(path: String, app_handle: AppHandle) -> Result<(), String> {
+    app_handle
+        .db_mut(|conn| super::parked::forget_parked_folder(&path, conn))
+        .map_err(|err| err.to_string())
+}

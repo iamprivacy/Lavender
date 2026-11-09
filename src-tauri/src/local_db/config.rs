@@ -150,6 +150,7 @@ pub fn ensure_table(conn: &Connection) -> rusqlite::Result<()> {
         INSERT OR IGNORE INTO fork_config (id, schema_version) VALUES (1, {SCHEMA_VERSION});"
     ))?;
     super::attempts::ensure_table(conn)?;
+    super::parked::ensure_table(conn)?;
     migrate(conn)
 }
 

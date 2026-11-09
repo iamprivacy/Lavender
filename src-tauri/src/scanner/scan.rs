@@ -107,6 +107,9 @@ pub fn scan_library(
 
     // Phase 3: Delete tracks that weren't processed (deleted files)
     progress_callback(ScanProgress::updating());
+    // Lavender: tracks of a removed folder are kept aside, not forgotten, and
+    // deleted tracks let go of their lyrics so a new track cannot inherit them
+    crate::local_db::parked::prepare_unprocessed_delete(directories, conn)?;
     let deleted = db::delete_unprocessed_tracks(conn)?;
 
     // Mark as initialized after first successful scan
@@ -192,6 +195,11 @@ fn process_batch(
                         }
                     }
                     None => {
+                        // Lavender: a file of a re-added folder comes back from its saved scan
+                        if restore_parked(&path_str, file_size, modified_time, &tx) {
+                            result.unchanged += 1;
+                            continue;
+                        }
                         // No match found - new file
                         match insert_new_track(path, file_size, modified_time, &hash, &tx) {
                             Ok(_) => result.added += 1,
@@ -217,6 +225,11 @@ fn process_batch(
                         }
                     }
                     None => {
+                        // Lavender: a file of a re-added folder comes back from its saved scan
+                        if restore_parked(&path_str, file_size, modified_time, &tx) {
+                            result.unchanged += 1;
+                            continue;
+                        }
                         // No fingerprint match - treat as new file
                         let hash = match compute_quick_hash(path) {
                             Ok(h) => h,
@@ -251,7 +264,65 @@ fn insert_new_track(
 ) -> Result<()> {
     // Extract metadata and lyrics
     let (metadata, lyrics) = extract_track_info(path)?;
+    insert_track_with_metadata(&metadata, &lyrics, file_size, modified_time, content_hash, None, tx)?;
+    Ok(())
+}
 
+/// Lavender: restores a parked track without opening the file. Returns false
+/// when there is no saved scan for this exact file, or when restoring failed
+/// (logged; the file is then read like a new one instead of stopping the scan).
+fn restore_parked(path: &str, file_size: i64, modified_time: i64, tx: &rusqlite::Transaction) -> bool {
+    // A savepoint, so a restore that fails halfway leaves nothing behind
+    let restored = tx
+        .execute_batch("SAVEPOINT lavender_restore")
+        .map_err(anyhow::Error::from)
+        .and_then(|_| try_restore_parked(path, file_size, modified_time, tx));
+    match restored {
+        Ok(restored) => {
+            let _ = tx.execute_batch("RELEASE lavender_restore");
+            restored
+        }
+        Err(e) => {
+            eprintln!("Error restoring saved scan of {:?}: {}", path, e);
+            let _ = tx.execute_batch("ROLLBACK TO lavender_restore; RELEASE lavender_restore");
+            false
+        }
+    }
+}
+
+fn try_restore_parked(
+    path: &str,
+    file_size: i64,
+    modified_time: i64,
+    tx: &rusqlite::Transaction,
+) -> Result<bool> {
+    let Some(parked) = crate::local_db::parked::take_parked(path, file_size, modified_time, tx)? else {
+        return Ok(false);
+    };
+    let preferred_id = crate::local_db::parked::track_id_is_free(parked.id, tx)?.then_some(parked.id);
+    insert_track_with_metadata(
+        &parked.metadata,
+        &crate::scanner::metadata::LyricsInfo::default(),
+        file_size,
+        modified_time,
+        &parked.content_hash,
+        preferred_id,
+        tx,
+    )?;
+    Ok(true)
+}
+
+/// Inserts a track whose tags are already known (split out of
+/// `insert_new_track` so Lavender's saved scans can reuse it).
+pub(crate) fn insert_track_with_metadata(
+    metadata: &crate::scanner::metadata::TrackMetadata,
+    lyrics: &crate::scanner::metadata::LyricsInfo,
+    file_size: i64,
+    modified_time: i64,
+    content_hash: &str,
+    preferred_id: Option<i64>,
+    tx: &rusqlite::Transaction,
+) -> Result<i64> {
     // Get or create artist
     let artist_id = match db::find_artist_tx(&metadata.artist, tx) {
         Ok(id) => id,
@@ -273,6 +344,7 @@ fn insert_new_track(
         content_hash,
         artist_id,
         album_id,
+        preferred_id,
         tx,
     )?;
 
@@ -323,5 +395,5 @@ fn insert_new_track(
         }
     }
 
-    Ok(())
+    Ok(track_id)
 }

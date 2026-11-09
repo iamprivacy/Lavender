@@ -31,6 +31,36 @@
         </button>
       </div>
 
+      <div v-if="savedScans.length" class="flex flex-col gap-2 w-full">
+        <div class="text-sm text-neutral-600 dark:text-neutral-400">
+          Saved scans of removed folders. Adding one back restores it without a rescan.
+        </div>
+        <div
+          v-for="saved in savedScans"
+          :key="saved.path"
+          class="w-full bg-neutral-50 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 p-3 rounded-lg flex items-center gap-2"
+        >
+          <div class="grow min-w-0">
+            <div class="truncate">{{ saved.path }}</div>
+            <div class="text-xs text-neutral-500">
+              {{ saved.trackCount }} {{ saved.trackCount === 1 ? 'track' : 'tracks' }}
+            </div>
+          </div>
+          <button
+            class="flex-none button button-normal px-3 py-1 rounded-full text-sm"
+            @click.prevent="addBack(saved.path)"
+          >
+            Add back
+          </button>
+          <button
+            class="flex-none button button-normal px-3 py-1 rounded-full text-sm"
+            @click.prevent="forget(saved.path)"
+          >
+            {{ confirmingForget === saved.path ? 'Really forget?' : 'Forget' }}
+          </button>
+        </div>
+      </div>
+
       <button class="button button-primary w-full p-4 rounded-lg" @click.prevent="progressStep">
         Continue
       </button>
@@ -42,13 +72,45 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { audioDir } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core'
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Close from '~icons/mdi/close'
 import Plus from '~icons/mdi/plus'
 const emit = defineEmits(['progressStep', 'directoriesChanged'])
 
 const directories = ref([])
 const originalDirectories = ref([])
+const parkedFolders = ref([])
+const confirmingForget = ref(null)
+
+// Folders shown in the list above are not offered again here
+const savedScans = computed(() =>
+  parkedFolders.value.filter(saved => !directories.value.includes(saved.path))
+)
+
+const loadParkedFolders = async () => {
+  try {
+    parkedFolders.value = await invoke('list_parked_folders')
+  } catch (error) {
+    console.error(error)
+    parkedFolders.value = []
+  }
+}
+
+const addBack = path => {
+  if (!directories.value.includes(path)) {
+    directories.value.push(path)
+  }
+}
+
+const forget = async path => {
+  if (confirmingForget.value !== path) {
+    confirmingForget.value = path
+    return
+  }
+  confirmingForget.value = null
+  await invoke('forget_parked_folder', { path })
+  await loadParkedFolders()
+}
 
 const progressStep = async () => {
   await invoke('set_directories', { directories: directories.value })
@@ -74,6 +136,7 @@ onMounted(async () => {
     directories.value.push(dirPath)
     originalDirectories.value = [dirPath]
   }
+  await loadParkedFolders()
 })
 
 const chooseDirectory = async () => {

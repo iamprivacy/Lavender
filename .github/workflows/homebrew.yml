@@ -1,0 +1,113 @@
+# Updates the Homebrew cask in the tap (iamprivacy/homebrew-lavender) when a
+# release is published, so `brew upgrade` picks it up. The cask is rendered
+# from packaging/homebrew/lavender.rb.in with the version and the sha256 of
+# both dmg files; the tap's README comes from packaging/homebrew/README.md.
+#
+# Needs the Actions secret HOMEBREW_TAP_TOKEN: a fine-grained token with
+# Contents read and write on the tap repo only (see RELEASING.md). Without it
+# the job skips with a warning and the release itself is unaffected.
+#
+# release.yml leaves its release as a draft; publishing it by hand fires the
+# "published" event. A manual run updates the cask for any published tag.
+name: Homebrew
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag to put in the cask (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homebrew
+  cancel-in-progress: false
+
+env:
+  TAP_REPO: iamprivacy/homebrew-lavender
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+
+jobs:
+  cask:
+    # The tap follows the public repo's releases only.
+    if: github.repository == 'iamprivacy/Lavender'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only plain version tags of a published, non-prerelease release go in
+      # the cask; older vX.Y.Z-local.N test builds never do.
+      - name: Check the release and the tap token
+        id: check
+        env:
+          HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::notice::$TAG is not a vX.Y.Z tag; the cask is left as it is"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease -q '"\(.isDraft) \(.isPrerelease)"')
+          if [ "$state" != "false false" ]; then
+            echo "::notice::$TAG is a draft or a prerelease; the cask is left as it is"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$HAS_TAP_TOKEN" != "true" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set, so the Homebrew cask was not updated for $TAG"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: Render the cask
+        if: steps.check.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          arm="Lavender_${VERSION}_aarch64.dmg"
+          intel="Lavender_${VERSION}_x64.dmg"
+          mkdir dmg
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dmg \
+            --pattern "$arm" --pattern "$intel" --pattern SHA256SUMS
+          for f in "$arm" "$intel"; do
+            [ -f "dmg/$f" ] || { echo "::error::$TAG has no $f"; exit 1; }
+          done
+          # The dmg files must match the release's own SHA256SUMS.
+          if [ -f dmg/SHA256SUMS ]; then
+            (cd dmg && grep -E "  (${arm//./\\.}|${intel//./\\.})$" SHA256SUMS | sha256sum -c -)
+          fi
+          sha_arm=$(sha256sum "dmg/$arm" | cut -d' ' -f1)
+          sha_intel=$(sha256sum "dmg/$intel" | cut -d' ' -f1)
+          sed -e "s/@VERSION@/$VERSION/" -e "s/@SHA256_ARM@/$sha_arm/" -e "s/@SHA256_INTEL@/$sha_intel/" \
+            packaging/homebrew/lavender.rb.in > lavender.rb
+          if grep -q '@[A-Z0-9_]*@' lavender.rb; then
+            echo "::error::a placeholder was left in the cask"; exit 1
+          fi
+          cat lavender.rb
+
+      # The tap keeps a single commit: each release replaces it, so the tap
+      # shows only the current cask and no history.
+      - name: Push the cask to the tap
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPO}.git"
+          mkdir -p tap/Casks
+          cp lavender.rb tap/Casks/lavender.rb
+          cp packaging/homebrew/README.md tap/README.md
+          cd tap
+          git init -q -b main
+          git add Casks/lavender.rb README.md
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898828+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "lavender ${VERSION}"
+          git push --quiet --force "$url" main

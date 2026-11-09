@@ -198,6 +198,16 @@ Get the latest version from the
 You can ignore the other files on a release (`.sig`, `.app.tar.gz`,
 `latest.json`); they're for the in-app update.
 
+On a Mac you can install with [Homebrew](https://brew.sh) instead; it picks
+the Apple Silicon or Intel build for you:
+
+```shell
+brew tap iamprivacy/lavender
+brew install --cask iamprivacy/lavender/lavender
+```
+
+Update with `brew upgrade --cask lavender`, or from **About** in the app.
+
 To install the Flatpak bundle:
 
 ```shell

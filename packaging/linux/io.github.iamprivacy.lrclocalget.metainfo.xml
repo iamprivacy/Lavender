@@ -19,6 +19,15 @@
   <url type="bugtracker">https://github.com/iamprivacy/Lavender/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.1" date="2026-11-09">
+      <description>
+        <ul>
+          <li>Removing a library folder keeps its scan, so adding it back is quick</li>
+          <li>Lyrics stay with their song after a full rescan or after music is removed</li>
+          <li>Switching to a different library folder no longer fails on a large library</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-07">
       <description>
         <p>First Lavender release, based on LRCGET 2.2.2.</p>
