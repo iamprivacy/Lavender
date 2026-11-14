@@ -22,6 +22,7 @@ pub mod gunzip;
 pub mod metadata_parse;
 pub mod parked;
 pub mod queries;
+pub mod scan_read;
 pub mod schema;
 pub mod source;
 pub mod tolerant;

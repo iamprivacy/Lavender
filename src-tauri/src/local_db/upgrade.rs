@@ -532,6 +532,8 @@ mod tests {
                 album_matched: true,
                 through_search_index: false,
                 tier: 0,
+                uneven: false,
+                passed_over_uneven: false,
             }),
         )
     }

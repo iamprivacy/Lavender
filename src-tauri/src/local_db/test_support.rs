@@ -144,6 +144,20 @@ pub fn fixture_connection() -> (tempfile::TempDir, Connection) {
     (dir, conn)
 }
 
+/// Synced lyrics of 40 full lines 6.5 seconds apart, with the stamps of
+/// `late` tapped 4 seconds late: the line before gets 10.5 seconds and the
+/// line itself 2.5, so each late stamp squeezes one line
+/// (`content::Timing::squeezed`).
+pub fn tapped_late(late: &[usize]) -> String {
+    (0..40usize)
+        .map(|i| {
+            let at = 5.0 + i as f64 * 6.5 + if late.contains(&i) { 4.0 } else { 0.0 };
+            format!("[{:02}:{:05.2}] this line has enough letters {i}", (at / 60.0) as i64, at % 60.0)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Gzips the fixture database next to it, returning the `.gz` path.
 pub fn fixture_gz(dir: &Path) -> PathBuf {
     let db_path = fixture_db(dir);

@@ -70,19 +70,20 @@ jobs:
 
       # Both gates are advisory (continue-on-error) until the findings they
       # report on the current tree are cleaned up; see the TODO on each step.
-      # The format check covers the fork's own module only: upstream's files
+      # The format check covers the fork's own modules only: upstream's files
       # are not rustfmt-clean either, and reformatting them would conflict
       # with every upstream merge.
-      # TODO: 155 rustfmt diffs in src/local_db on the tree this was added to;
-      # drop continue-on-error once one cargo fmt run over the module lands.
+      # TODO: 490 rustfmt diffs as of 0.1.1 (466 in src/local_db, 24 in
+      # src/app_update and src/download_run.rs); drop continue-on-error once
+      # one cargo fmt run over these modules lands.
       - name: Backend format check (advisory)
         working-directory: src-tauri
         continue-on-error: true
-        run: rustfmt --check --edition 2021 src/local_db/mod.rs
+        run: rustfmt --check --edition 2021 src/local_db/mod.rs src/app_update/mod.rs src/download_run.rs
 
-      # TODO: 34 clippy findings on the tree this was added to (31 in upstream
-      # files, 3 in src/local_db), with -D warnings stopping at the first
-      # target, so the test target is not counted yet; drop continue-on-error
+      # TODO: 36 clippy findings as of 0.1.1 over all targets: 35 in upstream
+      # files (left alone so merges stay clean) and one in the fork's own code
+      # (too many arguments, src/local_db/source.rs); drop continue-on-error
       # once they are fixed or allowed.
       - name: Backend lint (advisory)
         working-directory: src-tauri

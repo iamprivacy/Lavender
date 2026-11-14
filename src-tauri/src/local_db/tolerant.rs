@@ -170,6 +170,13 @@ pub struct MatchNote {
     /// share a tier, so a caller can tell "ranks above" from "ranks alike".
     /// Only `find_ranked` fills it in; the single-row lookups leave it 0.
     pub tier: usize,
+    /// The row's timing is uneven next to a cleaner copy that ranks at least
+    /// as high (`content::uneven`). Filled in by the lookups that rank all
+    /// rows at once.
+    pub uneven: bool,
+    /// The exact row for the file's own album was passed over for this one,
+    /// because its timing is uneven next to this copy's.
+    pub passed_over_uneven: bool,
 }
 
 impl MatchNote {
@@ -177,6 +184,9 @@ impl MatchNote {
         let mut text = format!("local: {}", self.rule.describe());
         if !self.album_matched {
             text.push_str("; album differs");
+        }
+        if self.passed_over_uneven {
+            text.push_str("; the album's own copy is timed unevenly");
         }
         text
     }
@@ -356,7 +366,7 @@ pub fn find_ranked(
         take(hits, true);
     }
     keep_same_performance(&mut rows);
-    settle_consensus(&mut rows);
+    settle_rows(&mut rows);
     rows.sort_by(|a, b| a.0.cmp(&b.0));
     let mut ranked: Vec<(LocalTrack, MatchNote)> = Vec::with_capacity(rows.len());
     let mut previous: Option<RankKey> = None;
@@ -384,15 +394,63 @@ fn keep_same_performance<T>(rows: &mut Vec<(RankKey, T, MatchNote)>) {
     }
 }
 
-/// Fills in how many of the other synced rows each accepted row agrees
-/// with (`content::agreements`), once all of them are known.
-fn settle_consensus(rows: &mut [(RankKey, LocalTrack, MatchNote)]) {
+/// `settle_content` for accepted rows, with the mark copied to the notes.
+fn settle_rows(rows: &mut [(RankKey, LocalTrack, MatchNote)]) {
     let timings: Vec<Option<Timing>> = rows
         .iter()
         .map(|(_, track, _)| synced_text(track).map(Timing::parse))
         .collect();
-    for (row, agreeing) in rows.iter_mut().zip(content::agreements(&timings)) {
-        row.0.agreeing = Reverse(agreeing);
+    settle_content(rows.iter_mut().map(|(key, _, _)| key).collect(), &timings);
+    for (key, _, note) in rows.iter_mut() {
+        note.uneven = key.evenness == Evenness::Uneven;
+    }
+}
+
+/// Fills in the signals that compare each accepted row with the others,
+/// once all of them are known: how many of the other synced rows it agrees
+/// with (`content::agreements`), and whether its timing is uneven next to
+/// them (`content::uneven`, over the rows of the file's own performance).
+/// A row is marked uneven only when a cleaner synced row ranks at least as
+/// high on everything decided before the mark (performance, edition, artist
+/// rule), so the mark never hands the pick to a weaker match. The cleaner
+/// rows that match exactly as well are marked clean and come first, so the
+/// pick goes to one of them and never to a plain row of the file's album
+/// that the uneven row used to keep below it.
+fn settle_content(mut keys: Vec<&mut RankKey>, timings: &[Option<Timing>]) {
+    for (key, agreeing) in keys.iter_mut().zip(content::agreements(timings)) {
+        key.agreeing = Reverse(agreeing);
+    }
+    let own: Vec<Option<&Timing>> = keys
+        .iter()
+        .zip(timings)
+        .map(|(key, timing)| timing.as_ref().filter(|_| !key.other_performance))
+        .collect();
+    let uneven = content::uneven(&own);
+    let is_even: Vec<bool> = own
+        .iter()
+        .zip(&uneven)
+        .map(|(timing, uneven)| timing.is_some() && !*uneven)
+        .collect();
+    let even: Vec<(bool, bool, MatchRule)> = keys
+        .iter()
+        .zip(&is_even)
+        .filter(|(_, is_even)| **is_even)
+        .map(|(key, _)| key.ahead_of_uneven())
+        .collect();
+    for (key, uneven) in keys.iter_mut().zip(uneven) {
+        if uneven && even.iter().any(|ahead| *ahead <= key.ahead_of_uneven()) {
+            key.evenness = Evenness::Uneven;
+        }
+    }
+    let gave_way: Vec<(bool, bool, MatchRule)> = keys
+        .iter()
+        .filter(|key| key.evenness == Evenness::Uneven)
+        .map(|key| key.ahead_of_uneven())
+        .collect();
+    for (key, is_even) in keys.iter_mut().zip(is_even) {
+        if is_even && gave_way.contains(&key.ahead_of_uneven()) {
+            key.evenness = Evenness::Clean;
+        }
     }
 }
 
@@ -463,6 +521,7 @@ pub fn rank_results(request: &TrackRequest, rows: &[ResultRow]) -> Vec<i64> {
                     edition::masked_texts(row.plain_lyrics.as_deref(), row.synced_lyrics.as_deref()),
                 ),
                 rule,
+                evenness: Evenness::Unjudged,
                 album_differs: !album_matched,
                 lacks_synced: !row.synced,
                 flaws: timing.as_ref().map(|timing| timing.flaws(matcher.duration)).unwrap_or(0),
@@ -478,9 +537,7 @@ pub fn rank_results(request: &TrackRequest, rows: &[ResultRow]) -> Vec<i64> {
         ranked.retain(|(key, _, _)| !key.other_performance);
     }
     let timings: Vec<Option<Timing>> = ranked.iter_mut().map(|(_, _, timing)| timing.take()).collect();
-    for (row, agreeing) in ranked.iter_mut().zip(content::agreements(&timings)) {
-        row.0.agreeing = Reverse(agreeing);
-    }
+    settle_content(ranked.iter_mut().map(|(key, _, _)| key).collect(), &timings);
     ranked.sort_by(|a, b| a.0.cmp(&b.0));
     ranked.into_iter().map(|(_, id, _)| id).collect()
 }
@@ -695,8 +752,8 @@ impl Matcher {
     }
 
     /// Verifies every candidate and returns the best accepted one. The
-    /// accepted rows are all kept first, since the consensus signal of the
-    /// content score compares each with the others.
+    /// accepted rows are all kept first, since the consensus and evenness
+    /// signals of the content score compare each with the others.
     fn choose(&self, candidates: Vec<LocalTrack>, through_search_index: bool) -> Option<(LocalTrack, MatchNote)> {
         let mut rows: Vec<(RankKey, LocalTrack, MatchNote)> = candidates
             .into_iter()
@@ -705,7 +762,7 @@ impl Matcher {
                     .map(|(key, note)| (key, candidate, note))
             })
             .collect();
-        settle_consensus(&mut rows);
+        settle_rows(&mut rows);
         rows.into_iter()
             .min_by(|a, b| a.0.cmp(&b.0))
             .map(|(_, track, note)| (track, note))
@@ -728,6 +785,7 @@ impl Matcher {
                 }),
             ),
             rule,
+            evenness: Evenness::Unjudged,
             album_differs: !album_matched,
             // The column or the lyrics file: a row whose timed lines live
             // only in its lyrics file still delivers them (`has_synced`).
@@ -749,6 +807,8 @@ impl Matcher {
             album_matched,
             through_search_index,
             tier: 0,
+            uneven: false,
+            passed_over_uneven: false,
         };
         Some((key, note))
     }
@@ -794,6 +854,12 @@ struct RankKey {
     /// unknown edition, however well its artist and album match.
     wrong_edition: bool,
     rule: MatchRule,
+    /// How the row's timing stands next to the other copies of the same
+    /// performance that match as well on the fields above
+    /// (`settle_content`). Decided before the album: a sloppy copy filed
+    /// under the file's album plays worse than a clean copy of the same
+    /// recording filed under another, and no album makes up for that.
+    evenness: Evenness,
     album_differs: bool,
     lacks_synced: bool,
     /// The content score (`content`): the weighted sanity flaws of the timed
@@ -813,6 +879,7 @@ impl RankKey {
         self.other_performance == other.other_performance
             && self.wrong_edition == other.wrong_edition
             && self.rule == other.rule
+            && self.evenness == other.evenness
             && self.album_differs == other.album_differs
             && self.lacks_synced == other.lacks_synced
             && self.flaws == other.flaws
@@ -820,6 +887,28 @@ impl RankKey {
             && self.lacks_word_sync == other.lacks_word_sync
             && self.duration_gap_ms == other.duration_gap_ms
     }
+
+    /// The fields decided before `evenness`: a cleaner row that is no worse
+    /// on these ranks above the uneven one.
+    fn ahead_of_uneven(&self) -> (bool, bool, MatchRule) {
+        (self.other_performance, self.wrong_edition, self.rule)
+    }
+}
+
+/// Where a row's timing puts it among the rows that match as well
+/// (`settle_content`), best first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Evenness {
+    /// A cleanly timed copy that an uneven copy matching exactly as well
+    /// gives way to. Ahead of the plain rows too: the uneven copy ranked
+    /// above the plain rows of its album as the synced one, and the copy
+    /// taking its place keeps that.
+    Clean,
+    /// Every other row (plain, another take, or no uneven row matches as
+    /// this one does): the album decides as ever.
+    Unjudged,
+    /// Timed unevenly next to a cleaner copy that matches at least as well.
+    Uneven,
 }
 
 /// The artist rules, in order of strength. `None` refuses the candidate.
@@ -1114,6 +1203,7 @@ mod tests {
             other_performance: false,
             wrong_edition: false,
             rule: MatchRule::FullArtist,
+            evenness: Evenness::Unjudged,
             album_differs: true,
             lacks_synced: true,
             flaws: 0,
@@ -1126,6 +1216,7 @@ mod tests {
             other_performance: false,
             wrong_edition: false,
             rule: MatchRule::FullArtist,
+            evenness: Evenness::Unjudged,
             album_differs: true,
             lacks_synced: false,
             flaws: 0,
@@ -1144,6 +1235,7 @@ mod tests {
             other_performance: false,
             wrong_edition: false,
             rule: MatchRule::PrimaryArtist,
+            evenness: Evenness::Unjudged,
             album_differs: false,
             lacks_synced: false,
             flaws: 0,
@@ -1260,6 +1352,7 @@ mod tests {
             other_performance: false,
             wrong_edition: false,
             rule: MatchRule::FullArtist,
+            evenness: Evenness::Unjudged,
             album_differs: false,
             lacks_synced: false,
             flaws: 0,
@@ -1568,6 +1661,94 @@ mod tests {
     }
 
     #[test]
+    fn an_unevenly_timed_copy_gives_way_to_a_clean_copy_of_the_same_recording() {
+        use super::super::test_support::tapped_late;
+        let (_dir, conn) = fixture_connection();
+        let sloppy = tapped_late(&[5, 12, 20, 27, 34]);
+        // The file is tagged with the single; the album holds a clean copy.
+        insert_track(&conn, 8100, "Wrath", "Lorna Shore", "Wrath", 280.0, true);
+        insert_track(&conn, 8101, "Wrath", "Lorna Shore", "Pain Remains", 280.0, true);
+        set_synced(&conn, 8100, &sloppy, false);
+        set_synced(&conn, 8101, &tapped_late(&[]), false);
+        let wanted = request("Wrath", "Lorna Shore", "Wrath", 280.0);
+        let ids = |conn: &Connection| -> Vec<(i64, bool)> {
+            find_ranked(conn, ALL_COLUMNS, true, true, &wanted)
+                .unwrap()
+                .into_iter()
+                .map(|(track, note)| (track.id, note.uneven))
+                .collect()
+        };
+        assert_eq!(ids(&conn), [(8101, false), (8100, true)], "the clean copy ranks above the album's own");
+        // A tier above, so Upgrade replaces the uneven copy where it is stored.
+        let tiers: Vec<usize> = find_ranked(&conn, ALL_COLUMNS, true, true, &wanted)
+            .unwrap()
+            .into_iter()
+            .map(|(_, note)| note.tier)
+            .collect();
+        assert_eq!(tiers, [0, 1]);
+        let (track, note) = find_tolerant(&conn, ALL_COLUMNS, true, true, &wanted).unwrap().unwrap();
+        assert_eq!(track.id, 8101);
+        assert!(!note.album_matched);
+
+        // Every copy as sloppy: the album decides again.
+        set_synced(&conn, 8101, &tapped_late(&[6, 13, 21, 28, 35]), false);
+        assert_eq!(ids(&conn), [(8100, false), (8101, false)]);
+
+        // A clean copy of a weaker artist match does not take over.
+        let unsync = |id: i64| {
+            conn.execute(
+                "UPDATE lyrics SET synced_lyrics = NULL, has_synced_lyrics = 0 WHERE track_id = ?1",
+                [id],
+            )
+            .unwrap();
+        };
+        unsync(8101);
+        insert_track(&conn, 8102, "Wrath", "Lorna Shore feat. Someone", "Pain Remains", 280.0, true);
+        set_synced(&conn, 8102, &tapped_late(&[]), false);
+        let ranked = find_ranked(&conn, ALL_COLUMNS, true, true, &wanted).unwrap();
+        assert_eq!(ranked.iter().map(|(track, _)| track.id).collect::<Vec<_>>(), [8100, 8101, 8102]);
+        assert!(ranked[2].1.rule > ranked[0].1.rule && !ranked[0].1.uneven);
+
+        // Nor does a clean live take: it is not a copy of the recording.
+        unsync(8102);
+        insert_track(&conn, 8103, "Wrath (Live)", "Lorna Shore", "Live", 280.0, true);
+        set_synced(&conn, 8103, &tapped_late(&[]), false);
+        let (track, _) = find_tolerant(&conn, ALL_COLUMNS, true, true, &wanted).unwrap().unwrap();
+        assert_eq!(track.id, 8100);
+        assert!(ids(&conn).iter().all(|(_, uneven)| !uneven));
+    }
+
+    #[test]
+    fn an_uneven_copy_gives_way_to_the_clean_copy_not_to_a_plain_row_of_its_album() {
+        use super::super::test_support::tapped_late;
+        let (_dir, conn) = fixture_connection();
+        // The file's album holds an uneven synced row and a plain one;
+        // another album holds a clean copy of the same recording.
+        insert_track(&conn, 8200, "Wrath", "Lorna Shore", "Wrath", 280.0, true);
+        insert_track(&conn, 8201, "Wrath", "Lorna Shore", "Wrath", 281.0, false);
+        insert_track(&conn, 8202, "Wrath", "Lorna Shore", "Pain Remains", 280.0, true);
+        set_synced(&conn, 8200, &tapped_late(&[5, 12, 20, 27, 34]), false);
+        set_synced(&conn, 8202, &tapped_late(&[]), false);
+        let wanted = request("Wrath", "Lorna Shore", "Wrath", 280.4);
+        let ranked = |conn: &Connection| -> Vec<(i64, bool, usize)> {
+            find_ranked(conn, ALL_COLUMNS, true, true, &wanted)
+                .unwrap()
+                .into_iter()
+                .map(|(track, note)| (track.id, note.uneven, note.tier))
+                .collect()
+        };
+        assert_eq!(ranked(&conn), [(8202, false, 0), (8201, false, 1), (8200, true, 2)]);
+        let (track, note) = find_tolerant(&conn, ALL_COLUMNS, true, true, &wanted).unwrap().unwrap();
+        assert_eq!(track.id, 8202, "the clean synced copy, not the plain row");
+        assert!(!note.album_matched);
+
+        // No uneven row to give way: the album decides as ever, and the
+        // album's own rows stay above the other album's synced copy.
+        set_synced(&conn, 8200, &tapped_late(&[]), false);
+        assert_eq!(ranked(&conn), [(8200, false, 0), (8201, false, 1), (8202, false, 2)]);
+    }
+
+    #[test]
     fn the_right_artist_behind_more_same_title_rows_than_the_cap_is_found() {
         let (_dir, conn) = fixture_connection();
         // Older rows by other artists, more of them than the sweep reads,
@@ -1704,7 +1885,7 @@ mod tests {
     fn bytecode_for(conn: &Connection, sql: &str) -> Vec<(String, i64, i64, i64)> {
         let mut statement = conn.prepare(&format!("EXPLAIN {sql}")).unwrap();
         statement
-            .query_map(params_from_iter(vec![Value::from("intro".to_owned()), 98.0.into(), 102.0.into()].iter()), |row| {
+            .query_map(params_from_iter([Value::from("intro".to_owned()), 98.0.into(), 102.0.into()].iter()), |row| {
                 Ok((row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?, row.get::<_, i64>(4)?))
             })
             .unwrap()

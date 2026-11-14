@@ -1,8 +1,6 @@
 use crate::db;
 use crate::db::ScanTrackInfo;
 use crate::lyricsfile::{build_lyricsfile, LyricsfileTrackMetadata};
-use crate::scanner::hasher::compute_quick_hash;
-use crate::scanner::metadata::extract_track_info;
 use crate::scanner::models::{ScanProgress, ScanResult};
 use anyhow::Result;
 use globwalk::glob;
@@ -145,6 +143,8 @@ fn process_batch(
 ) -> Result<BatchResult> {
     let mut result = BatchResult::default();
     let tx = conn.transaction()?;
+    // Lavender: the files this batch opens are read ahead, several at a time
+    let mut read_ahead = crate::local_db::scan_read::read_ahead(batch, detection_method, &tx)?;
 
     for entry in batch {
         let path = entry.path();
@@ -167,7 +167,7 @@ fn process_batch(
         match detection_method {
             DetectionMethod::Hash => {
                 // Hash-based detection (default)
-                let hash = match compute_quick_hash(path) {
+                let hash = match read_ahead.hash(path) {
                     Ok(h) => h,
                     Err(e) => {
                         eprintln!("Error hashing {:?}: {}", path, e);
@@ -201,7 +201,7 @@ fn process_batch(
                             continue;
                         }
                         // No match found - new file
-                        match insert_new_track(path, file_size, modified_time, &hash, &tx) {
+                        match insert_new_track(path, file_size, modified_time, &hash, &mut read_ahead, &tx) {
                             Ok(_) => result.added += 1,
                             Err(e) => {
                                 eprintln!("Error inserting track {:?}: {}", path, e)
@@ -231,14 +231,14 @@ fn process_batch(
                             continue;
                         }
                         // No fingerprint match - treat as new file
-                        let hash = match compute_quick_hash(path) {
+                        let hash = match read_ahead.hash(path) {
                             Ok(h) => h,
                             Err(e) => {
                                 eprintln!("Error hashing {:?}: {}", path, e);
                                 continue;
                             }
                         };
-                        match insert_new_track(path, file_size, modified_time, &hash, &tx) {
+                        match insert_new_track(path, file_size, modified_time, &hash, &mut read_ahead, &tx) {
                             Ok(_) => result.added += 1,
                             Err(e) => {
                                 eprintln!("Error inserting track {:?}: {}", path, e)
@@ -260,10 +260,11 @@ fn insert_new_track(
     file_size: i64,
     modified_time: i64,
     content_hash: &str,
+    read_ahead: &mut crate::local_db::scan_read::ReadAhead,
     tx: &rusqlite::Transaction,
 ) -> Result<()> {
     // Extract metadata and lyrics
-    let (metadata, lyrics) = extract_track_info(path)?;
+    let (metadata, lyrics) = read_ahead.track_info(path)?;
     insert_track_with_metadata(&metadata, &lyrics, file_size, modified_time, content_hash, None, tx)?;
     Ok(())
 }

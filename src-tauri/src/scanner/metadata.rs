@@ -1,6 +1,7 @@
 use anyhow::Result;
 use lofty::error::LoftyError;
 use lofty::file::AudioFile;
+use lofty::file::TaggedFile;
 use lofty::file::TaggedFileExt;
 use lofty::read_from_path;
 use lofty::tag::Accessor;
@@ -44,17 +45,25 @@ impl TrackMetadata {
     /// Extract metadata from an audio file path
     pub fn from_path(path: &Path) -> Result<Self, MetadataError> {
         let file_path = path.display().to_string();
-        let file_name = path
-            .file_name()
-            .and_then(|f| f.to_str())
-            .map(|s| s.to_owned())
-            .unwrap_or_default();
 
         // Parse audio file
         let tagged_file = read_from_path(&file_path).map_err(|e| MetadataError::ParseFailed {
             path: file_path.clone(),
             source: e,
         })?;
+
+        Self::from_tagged_file(path, &tagged_file)
+    }
+
+    /// The fields of a file already parsed (Lavender: split out of
+    /// `from_path` so the scan's read-ahead can parse without cover art).
+    pub(crate) fn from_tagged_file(path: &Path, tagged_file: &TaggedFile) -> Result<Self, MetadataError> {
+        let file_path = path.display().to_string();
+        let file_name = path
+            .file_name()
+            .and_then(|f| f.to_str())
+            .map(|s| s.to_owned())
+            .unwrap_or_default();
 
         let tag = tagged_file
             .primary_tag()

@@ -1,9 +1,13 @@
-//! Lavender's release versions. The app version is upstream's (`2.2.0`, from
-//! Cargo.toml) because MSI needs a purely numeric version; the fork's release
-//! number lives in the tag (`v2.2.0-local.3`). Release builds learn that number
-//! from the `LAVENDER_RELEASE` environment variable at compile time (set by
-//! `release.yml` from the tag). A build without it counts as release 0, so any
-//! published release of the same base version is newer.
+//! Lavender's release versions. The app version is Lavender's own (`0.1.0` and
+//! up, from Cargo.toml) and a release tag is that version (`v0.1.1`).
+//!
+//! A test build can carry a release number on top (`v0.1.1-local.3`): MSI
+//! needs a purely numeric version, so the number never enters the app version
+//! and is compiled in from the `LAVENDER_RELEASE` environment variable
+//! (`tools/update-e2e/build.sh`, or `release.yml` for a `-local.N` tag). A
+//! build without it counts as release 0, so a `-local.N` build of the same
+//! base version is newer. The examples below use `2.2.0`, the base version of
+//! the first test builds.
 
 use std::cmp::Ordering;
 

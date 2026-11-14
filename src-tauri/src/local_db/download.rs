@@ -728,8 +728,8 @@ pub async fn download(
     });
 
     let mut tasks = JoinSet::new();
-    for index in 0..segments.len() {
-        if !segments[index].finished() {
+    for (index, segment) in segments.iter().enumerate() {
+        if !segment.finished() {
             tasks.spawn(fetch_segment(Arc::clone(&shared), index, tx.clone()));
         }
     }

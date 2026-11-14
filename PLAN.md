@@ -72,7 +72,7 @@ Other facts:
 - FTS5 is available in the bundled rusqlite (upstream's migration 16 uses it).
 - At the start upstream had no auto-updater (`plugins: {}` in
   `tauri.conf.json`, no `tauri-plugin-updater`). The fork later added its own
-  in-app update (Part F), which only ever reads this fork's releases, so
+  in-app update (Part G), which only ever reads this fork's releases, so
   nothing can update the fork into stock LRCGET.
 - Workflows: `publish.yml` (push to `release` branch; tauri-action matrix of
   macos-latest x2 targets, ubuntu-24.04 with webkit2gtk pinned `2.44.0-2`,
@@ -188,7 +188,7 @@ Edits to upstream files (each recorded in `FORK_CHANGES.md`):
 - Side by side: a different identifier gives a different `app_data_dir`; a
   different product name gives a different NSIS install directory and WiX
   upgrade code.
-- The in-app update (Part F) points only at this fork's releases
+- The in-app update (Part G) points only at this fork's releases
   (`iamprivacy/Lavender`) and uses this fork's own minisign key
   (`TAURI_SIGNING_PRIVATE_KEY`, `..._PASSWORD`; public half in
   `plugins.updater.pubkey`).
@@ -658,7 +658,7 @@ blank, the official free tier gives a 30 percent snippet) and ChartLyrics
 (gone) are dead ends. The ladder, the matcher and the settings group still
 take a plain-text step the day a verifiable source appears.
 
-## Part F. In-app update and Lavender's About dialog
+## Part G. In-app update and Lavender's About dialog
 
 Upstream's About dialog checked LRCGET's releases and told Lavender users to
 download LRCGET, and listed the LRCGET developer's contacts as Lavender's. The
@@ -708,7 +708,7 @@ fork now has its own About dialog and an in-app update of its own:
 
 ---
 
-## Part G. Word-synced lyrics
+## Part H. Word-synced lyrics
 
 Apple Music shows lyrics with a timestamp per word. The question was how to
 get that quality into Lavender; the answer turned out to be mostly about
@@ -820,7 +820,7 @@ point of the run but costs a search per track. The `#[ignore]` live tests
 firewall blocks the freshly built test binary; the endpoints were verified
 with curl, and the owner runs the live tests.
 
-## Part H. Explicit and clean editions
+## Part I. Explicit and clean editions
 
 Lyrics for an explicit song came back censored ("B***h"). The cause is in
 the matching, by design: a clean cut shares its title, artist, album and
@@ -893,3 +893,111 @@ clean-badged file; `extra/mod.rs` holds a masked answer back for an unmasked
 one and takes it when none is; `apple.rs` ranks a clean twin after the
 explicit cut from the rating; `upgrade.rs` decides what replaces masked
 stored lyrics; `config.rs` migrates and round-trips the setting.
+
+## Part J. Timing quality
+
+Rap God played "close but sloppy". Lavender had taken the single's row
+because the file's album matched it, and nothing weighed the timing. Among
+the song's public rows the copy taken had 9 lines given less than half the
+time their neighbours got for their length (a full line with 0.7 s before
+the next stamp), against 1 or 2 in the other copies. The copies otherwise
+agree within half a second, so consensus (1.5 s) saw nothing.
+
+**Evenness (`content.rs`).** `Timing::squeezed` counts lines of at least 15
+letters and digits sung more than twice as fast as the median of up to three
+neighbours each side (stamps stacked under one line count once). Relative to
+the neighbours, so a fast verse is not squeezed. A fixed share per copy was
+tried first and dropped: over 39 songs (433 distinct copies) it flagged 131
+of the first 325, since every song has a few squeezed lines in every copy
+and how many depends on the song. `content::uneven` instead compares the
+copies of one song: a copy is uneven with at least `UNEVEN_EXCESS` (4) more
+squeezed lines than the typical copy (the lower median over distinct
+timings) and at least twice as many. That flagged 31 of 433, Rap God's bad
+copies among them, and no song whose copies are all alike.
+
+**Give-way (`tolerant.rs`, `source.rs`).** `RankKey` gains `evenness`
+(clean, unjudged, uneven) after the artist rule, before `album_differs`: no
+album makes a sloppy copy play better. `settle_content` marks a row uneven
+only when an even synced row of the same performance ranks at least as well
+on (other performance, wrong edition, rule), so the mark never hands the
+pick to a weaker artist match or another take. The even synced rows that
+match exactly as the uneven one does are marked clean and come first, ahead
+of the plain rows too: the uneven row ranked above the plain rows of its
+album as the synced one, and without the clean mark a plain row of the
+file's album would take the pick over the clean copy under another album.
+Rows that match like no uneven row stay unjudged, so the album decides
+there as before. On the exact path, `source::evener_copy` runs
+the ranking when the exact hit `may_be_uneven` (4 squeezed lines or more)
+and takes the first even synced row when the hit is marked;
+`MatchNote::passed_over_uneven` adds "the album's own copy is timed
+unevenly" to the log. Upgrade ranks the same way: the uneven row sits a
+tier below, so `synced_verdict` returns `Better`. But an earlier Upgrade run
+remembered the tracks it kept (`upgrade_checks`) and would leave them out,
+so fork schema version 12 forgets those checks once
+(`config::RANKING_CHANGED`); remembered misses stay, since the ranking does
+not change what the database can answer. The changelog tells users to run
+Upgrade to the best match once after updating.
+
+**Consensus.** `Timing::distance` pairs lines along the longest common run
+of texts (a table of lines by lines, capped at `MAX_PAIRING` steps) instead
+of a six-line lookahead, which derailed one way round when one copy opened
+with lines the other lacked. `agreements` groups copies within
+`SAME_UPLOAD_MS` (100 ms) into one upload and compares each pair of uploads
+once, so re-uploads of one copy vote once and the count is the same both
+ways.
+
+**Limits.** Without the audio nobody can say which copy is truly tightest;
+squeezed lines only show stamps out of step with the words. Line-synced
+lyrics cannot follow the fastest verses closely whatever copy is taken.
+
+**Tests.** `content.rs`: squeezed lines, stacked translations, the uneven
+rule, re-uploads voting once, the distance both ways round. `tolerant.rs`:
+an uneven row gives way to a clean copy under another album and sits a tier
+below; not to a weaker artist match or a live take, nor when every copy is
+sloppy. `source.rs`: an exact hit timed unevenly is swapped, with the note,
+and stands when it is not.
+
+## Part K. Network folders
+
+**Why.** Adding back an SMB folder from its saved scan took very long on
+Windows although no file is opened. Every restored track looks for unlinked
+lyrics (`db::find_orphaned_lyricsfile_tx`), and SQLite answered
+`track_id IS NULL` through the unique `track_id` index, reading every
+unlinked row each time; removing a folder unlinks all its lyrics, so the
+cost grew with the square of the folder. 2,000 lookups among 40,000 unlinked
+rows: 6 s before, 2 ms with `INDEXED BY idx_lyricsfiles_track_title_lower`.
+A partial index does not help: the planner still picks the `track_id` index.
+
+**Offline folders.** `parked::prepare_unprocessed_delete` checks each library
+folder first. One that cannot be listed, or is completely empty (an
+unmounted share, a disconnected drive), keeps its pending tracks, and
+`notify_unreachable` queues one warning per folder after the scan. A folder
+that can be read but has no music still loses its tracks.
+
+**Moved folders.** `take_parked` (and `would_restore`, which removes
+nothing) follow a saved folder to a new path: when a scanned file lies in a
+library folder D and a saved folder P holds a row at the same place inside P
+with the same size and modified time, that row is rewritten to the file's
+path. Each file is followed by itself, so a library folder that only holds
+a copy of some of P's files takes those and leaves the rest of P's saved
+scan in place; P is forgotten at the end of the scan that takes its last
+row. Folders nested in each other are never paired.
+
+**Read-ahead.** `local_db::scan_read` reads what a batch will open on an
+8-thread rayon pool (each thread gets the scan's lofty allocation limit):
+one open per file, the quick hash with the same single read as
+`compute_quick_hash`, then tags through `Probe` with
+`read_cover_art(false)`. Lyrics files are looked up in one listing per
+folder and opened only when listed, or when the song's name and some listed
+lyrics name both hold characters outside ASCII: macOS opens either Unicode
+spelling of a name ("é" as one character or as "e" plus an accent mark)
+for the other, while the listing gives each name as stored, so such a pair
+is checked by name the upstream way. Tags that parse but lack a field the
+scanner needs are kept as upstream's own error (cover art has no say in
+which fields are there), so such a file is not parsed a second time.
+Anything else missing falls back to upstream's readers, so errors read the
+same.
+
+**Limits.** Timing over SMB is checked by the owner on Windows. A folder
+that is empty on purpose keeps its old tracks until it has files again.
+

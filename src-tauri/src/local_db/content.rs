@@ -11,8 +11,17 @@
 //! - Consensus: the uploads of one song mostly agree on when each line
 //!   starts. A copy whose timestamps sit seconds away from the others is the
 //!   odd one out (shifted, or for another edition). Counted as the other
-//!   copies this one agrees with, over lines with the same text, so the
-//!   largest group of agreeing uploads comes first.
+//!   uploads this one agrees with, over lines with the same text, so the
+//!   largest group of agreeing uploads comes first. Re-uploads of one copy
+//!   count once, so a copy uploaded many times does not outvote the rest.
+//! - Evenness: a stamp tapped late leaves the line after it a fraction of a
+//!   second for its words, which plays as lyrics running ahead and behind.
+//!   Counted as squeezed lines, and a copy with far more of them than the
+//!   other copies of the song is timed unevenly. Judged against the other
+//!   copies, not a fixed share: every song has a few squeezed lines in every
+//!   copy, and how many depends on the song. Unlike the flaws, this decides
+//!   before the album (`tolerant::RankKey`), since no album makes a sloppy
+//!   copy play better.
 //! - Word sync: a copy with per-word timing came from a more careful upload
 //!   and plays better.
 //!
@@ -42,8 +51,32 @@ const SECONDS_PER_LINE: f64 = 30.0;
 /// this share of the shorter one.
 const MIN_SHARED: usize = 3;
 const MIN_SHARED_SHARE: f64 = 0.3;
-/// When looking for a line's twin in the other copy, this many lines ahead.
-const LOOKAHEAD: usize = 6;
+/// Copies are compared only while pairing their lines takes no more than
+/// this many steps (lines of one times lines of the other). Far above any
+/// song; it keeps a broken upload of thousands of lines from stalling the
+/// pick.
+const MAX_PAIRING: usize = 1_000_000;
+/// Copies timed within this of each other are one upload counted twice (a
+/// re-upload, or the same file under another album), and vote once.
+const SAME_UPLOAD_MS: i64 = 100;
+/// A line is squeezed when it has at least this many letters and digits and
+/// is sung more than `SQUEEZE_FACTOR` times faster than the lines around it
+/// (up to `SQUEEZE_NEIGHBOURS` each side, by their median pace). Measured
+/// against the neighbours, so a verse that is fast throughout is not
+/// squeezed; only too fast counts, since a slow line may just come before a
+/// pause.
+const SQUEEZE_MIN_CHARS: usize = 15;
+const SQUEEZE_FACTOR: f64 = 2.0;
+const SQUEEZE_NEIGHBOURS: usize = 3;
+/// Stamps closer than this count as this far apart, so a line stamped on
+/// top of the next does not divide by nothing.
+const MIN_LINE_S: f64 = 0.05;
+/// A copy is timed unevenly when it has at least this many more squeezed
+/// lines than the copies of the song typically have, and at least twice as
+/// many. Every song has a few squeezed lines in every copy (a fast line in a
+/// slow verse is sung that way), so only the excess over the song's other
+/// copies says a stamp was tapped late or early.
+const UNEVEN_EXCESS: u32 = 4;
 
 /// Weights of the flaws, by how badly each spoils playback.
 const NO_TIMING: u8 = 4;
@@ -118,25 +151,95 @@ impl Timing {
         flaws
     }
 
-    /// Lines with the same text, paired in order: the median distance in
-    /// milliseconds, when enough lines pair up to compare the two.
-    fn distance(&self, other: &Timing) -> Option<i64> {
-        let theirs: Vec<&(i64, String)> = other.lines.iter().filter(|(_, text)| !text.is_empty()).collect();
-        let mut next = 0;
-        let mut diffs = Vec::new();
-        let mut mine = 0;
+    /// How many lines are given far less time than their neighbours for
+    /// their length: a full line with a fraction of a second before the next
+    /// stamp. Lines stacked on one stamp (a translation under each line)
+    /// count once, by the first with words.
+    pub fn squeezed(&self) -> u32 {
+        let mut stamps: Vec<(i64, &str)> = Vec::new();
         for (at, text) in &self.lines {
-            if text.is_empty() {
-                continue;
-            }
-            mine += 1;
-            if let Some(offset) = theirs[next..].iter().take(LOOKAHEAD).position(|(_, other)| other == text) {
-                let found = next + offset;
-                diffs.push((at - theirs[found].0).abs());
-                next = found + 1;
+            match stamps.last_mut() {
+                Some((last_at, last_text)) if last_at == at => {
+                    if last_text.is_empty() {
+                        *last_text = text;
+                    }
+                }
+                _ => stamps.push((*at, text)),
             }
         }
-        let shorter = mine.min(theirs.len());
+        // Letters and digits per second, for every line with words that has
+        // a next stamp to end it.
+        let paced: Vec<(usize, f64)> = stamps
+            .windows(2)
+            .filter(|pair| !pair[0].1.is_empty())
+            .map(|pair| {
+                let length = pair[0].1.chars().count();
+                let seconds = ((pair[1].0 - pair[0].0) as f64 / 1000.0).max(MIN_LINE_S);
+                (length, length as f64 / seconds)
+            })
+            .collect();
+        (0..paced.len())
+            .filter(|&index| {
+                let (length, pace) = paced[index];
+                if length < SQUEEZE_MIN_CHARS {
+                    return false;
+                }
+                let around: Vec<f64> = (index.saturating_sub(SQUEEZE_NEIGHBOURS)
+                    ..=(index + SQUEEZE_NEIGHBOURS).min(paced.len() - 1))
+                    .filter(|&other| other != index)
+                    .map(|other| paced[other].1)
+                    .collect();
+                !around.is_empty() && pace > SQUEEZE_FACTOR * lower_median(around)
+            })
+            .count() as u32
+    }
+
+    /// Whether this copy has enough squeezed lines that it could be timed
+    /// unevenly next to some other copy (`uneven`). Lets a caller skip
+    /// looking for the other copies when it cannot.
+    pub fn may_be_uneven(&self) -> bool {
+        self.squeezed() >= UNEVEN_EXCESS
+    }
+
+    /// Lines with the same text, paired in order by the longest run of
+    /// texts the two copies share, so a merged, split or extra line does not
+    /// throw off the lines after it: the median distance in milliseconds,
+    /// when enough lines pair up to compare the two.
+    fn distance(&self, other: &Timing) -> Option<i64> {
+        let mine: Vec<&(i64, String)> = self.lines.iter().filter(|(_, text)| !text.is_empty()).collect();
+        let theirs: Vec<&(i64, String)> = other.lines.iter().filter(|(_, text)| !text.is_empty()).collect();
+        let (rows, columns) = (mine.len(), theirs.len());
+        if rows.saturating_mul(columns) > MAX_PAIRING {
+            return None;
+        }
+        // shared[i][j]: how many lines mine[i..] and theirs[j..] share in order.
+        let width = columns + 1;
+        let mut shared = vec![0u32; (rows + 1) * width];
+        for i in (0..rows).rev() {
+            for j in (0..columns).rev() {
+                shared[i * width + j] = if mine[i].1 == theirs[j].1 {
+                    shared[(i + 1) * width + j + 1] + 1
+                } else {
+                    shared[(i + 1) * width + j].max(shared[i * width + j + 1])
+                };
+            }
+        }
+        // Walk forward, pairing each line with its earliest twin that keeps
+        // the most lines shared.
+        let mut diffs = Vec::new();
+        let (mut i, mut j) = (0, 0);
+        while i < rows && j < columns {
+            if mine[i].1 == theirs[j].1 && shared[i * width + j] == shared[(i + 1) * width + j + 1] + 1 {
+                diffs.push((mine[i].0 - theirs[j].0).abs());
+                i += 1;
+                j += 1;
+            } else if shared[(i + 1) * width + j] >= shared[i * width + j + 1] {
+                i += 1;
+            } else {
+                j += 1;
+            }
+        }
+        let shorter = rows.min(columns);
         if diffs.len() < MIN_SHARED || (diffs.len() as f64) < shorter as f64 * MIN_SHARED_SHARE {
             return None;
         }
@@ -144,28 +247,63 @@ impl Timing {
     }
 }
 
-/// How many of the other copies each copy agrees with: the same lines
-/// timed within `AGREEMENT_MS` of each other. 0 for a copy that is the odd
-/// one out, that has no other copy to compare with, or that is not synced
-/// (`None`). Two copies alone agree or disagree together, so neither is
-/// marked the odd one.
+/// How many other uploads each copy agrees with: the same lines timed within
+/// `AGREEMENT_MS` of each other. Copies that are one upload (the same lines
+/// within `SAME_UPLOAD_MS`) count as one, so the number is of independent
+/// uploads. 0 for a copy that is the odd one out, that has no other upload
+/// to compare with, or that is not synced (`None`). Two uploads alone agree
+/// or disagree together, so neither is marked the odd one.
 pub fn agreements(timings: &[Option<Timing>]) -> Vec<u32> {
-    timings
+    // Each copy's upload, by the first copy that stands for it.
+    let mut uploads: Vec<&Timing> = Vec::new();
+    let upload_of: Vec<Option<usize>> = timings
         .iter()
-        .enumerate()
-        .map(|(index, timing)| {
-            let Some(mine) = timing else {
-                return 0;
-            };
-            timings
-                .iter()
-                .enumerate()
-                .filter(|(other, _)| *other != index)
-                .filter_map(|(_, other)| other.as_ref())
-                .filter_map(|other| mine.distance(other))
-                .filter(|distance| *distance <= AGREEMENT_MS)
-                .count() as u32
+        .map(|timing| {
+            let timing = timing.as_ref()?;
+            let known = uploads.iter().position(|upload| {
+                *upload == timing || upload.distance(timing).is_some_and(|distance| distance <= SAME_UPLOAD_MS)
+            });
+            Some(known.unwrap_or_else(|| {
+                uploads.push(timing);
+                uploads.len() - 1
+            }))
         })
+        .collect();
+    // Each pair of uploads compared once, so the count is the same both ways.
+    let mut agreeing = vec![0u32; uploads.len()];
+    for a in 0..uploads.len() {
+        for b in a + 1..uploads.len() {
+            if uploads[a].distance(uploads[b]).is_some_and(|distance| distance <= AGREEMENT_MS) {
+                agreeing[a] += 1;
+                agreeing[b] += 1;
+            }
+        }
+    }
+    upload_of.iter().map(|upload| upload.map_or(0, |upload| agreeing[upload])).collect()
+}
+
+/// Which copies are timed unevenly next to the other copies of the song:
+/// `UNEVEN_EXCESS` more squeezed lines than the typical copy (the lower
+/// median over the distinct timings, so re-uploads of one copy count once),
+/// and at least twice as many. Never a copy that is not synced (`None`), nor
+/// any copy when there are fewer than two distinct timings to compare.
+pub fn uneven(timings: &[Option<&Timing>]) -> Vec<bool> {
+    let squeezed: Vec<Option<u32>> = timings.iter().map(|timing| timing.map(Timing::squeezed)).collect();
+    let mut distinct: Vec<(&Timing, u32)> = Vec::new();
+    for (timing, count) in timings.iter().zip(&squeezed) {
+        if let (Some(timing), Some(count)) = (timing, count) {
+            if !distinct.iter().any(|(known, _)| known == timing) {
+                distinct.push((timing, *count));
+            }
+        }
+    }
+    if distinct.len() < 2 {
+        return vec![false; timings.len()];
+    }
+    let typical = lower_median(distinct.iter().map(|(_, count)| *count).collect());
+    squeezed
+        .iter()
+        .map(|count| count.is_some_and(|count| count >= typical + UNEVEN_EXCESS && count >= 2 * typical))
         .collect()
 }
 
@@ -191,8 +329,8 @@ fn normalize(text: &str) -> String {
     text.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
 }
 
-fn lower_median(mut values: Vec<i64>) -> i64 {
-    values.sort_unstable();
+fn lower_median<T: PartialOrd + Copy>(mut values: Vec<T>) -> T {
+    values.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     values[(values.len() - 1) / 2]
 }
 
@@ -266,6 +404,101 @@ mod tests {
         // Three shared lines are enough to compare; fewer are not.
         assert_eq!(a.distance(&Timing::parse("[00:01.00] one\n[00:05.00] two\n[00:09.00] three")), Some(0));
         assert_eq!(a.distance(&Timing::parse("[00:01.00] one\n[00:05.00] two\n[00:09.00] zzz")), None);
+    }
+
+    #[test]
+    fn re_uploads_of_one_copy_vote_once() {
+        // One copy uploaded three times, seconds off the two others, which
+        // agree with each other: the two others win, not the three.
+        let odd = Timing::parse(&lines(20, 9_000, 5_000));
+        let b = Timing::parse(&lines(20, 5_000, 5_000));
+        let c = Timing::parse(&lines(20, 5_400, 5_000));
+        let timings = [Some(odd.clone()), Some(odd.clone()), Some(odd), Some(b.clone()), Some(c)];
+        assert_eq!(agreements(&timings), vec![0, 0, 0, 1, 1]);
+        // A copy a few hundredths off another is the same upload.
+        let b_again = Timing::parse(&lines(20, 5_030, 5_000));
+        let shifted = Timing::parse(&lines(20, 9_000, 5_000));
+        assert_eq!(agreements(&[Some(b), Some(b_again), Some(shifted)]), vec![0, 0, 0]);
+    }
+
+    #[test]
+    fn two_copies_measure_the_same_distance_both_ways_round() {
+        // One copy opens with lines the other lacks, more than a few: the
+        // other's lines still find their twins after them.
+        let intro: Vec<String> = (0..8).map(|i| format!("[00:{:02}.00] intro {i}", i)).collect();
+        let long = format!("{}\n{}", intro.join("\n"), lines(20, 10_000, 5_000));
+        let long = Timing::parse(&long);
+        let short = Timing::parse(&lines(20, 10_500, 5_000));
+        assert_eq!(long.distance(&short), Some(500));
+        assert_eq!(short.distance(&long), Some(500));
+        // A merged line pairs neither half and leaves the rest in step.
+        let merged = lines(20, 10_500, 5_000).replace("line 4\n", "line 4 ").replace("] line 5", "] gone");
+        let merged = Timing::parse(&merged);
+        assert_eq!(merged.distance(&short), short.distance(&merged));
+        assert_eq!(merged.distance(&short), Some(0));
+    }
+
+    /// Lines long enough to be squeezed, one per stamp.
+    fn long_lines(stamps: &[i64]) -> String {
+        stamps
+            .iter()
+            .enumerate()
+            .map(|(i, at)| {
+                format!("[{:02}:{:02}.{:02}] this line has enough letters {i}", at / 60_000, at % 60_000 / 1000, at % 1000 / 10)
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// 40 lines 4 seconds apart, with the stamps of `late` tapped 3.2
+    /// seconds late: the line before gets 7.2 seconds, the line itself 0.8.
+    fn tapped_late(late: &[usize]) -> Timing {
+        let stamps: Vec<i64> = (0..40)
+            .map(|i| 5_000 + i as i64 * 4_000 + if late.contains(&i) { 3_200 } else { 0 })
+            .collect();
+        Timing::parse(&long_lines(&stamps))
+    }
+
+    #[test]
+    fn a_line_with_too_little_time_for_its_words_is_squeezed() {
+        assert_eq!(tapped_late(&[]).squeezed(), 0);
+        assert_eq!(tapped_late(&[5, 12, 20, 27, 34]).squeezed(), 5);
+        assert!(tapped_late(&[5, 12, 20, 27, 34]).may_be_uneven());
+        assert!(!tapped_late(&[5, 12, 20]).may_be_uneven());
+        // A verse that is fast throughout is sung that way.
+        let fast: Vec<i64> = (0..40).map(|i| 5_000 + i * 1_200).collect();
+        assert_eq!(Timing::parse(&long_lines(&fast)).squeezed(), 0);
+        // Short lines are never squeezed: "yeah" may well take no time.
+        let short = Timing::parse(&lines(40, 5_000, 4_000).replace("line", "x"));
+        assert_eq!(short.squeezed(), 0);
+        // A translation stacked under each line shares its stamp, so the
+        // line is not left no time at all.
+        let stamps: Vec<i64> = (0..40).map(|i| 5_000 + i * 4_000).collect();
+        let stacked = format!("{}\n{}", long_lines(&stamps), long_lines(&stamps).replace("this line", "esta linea"));
+        assert_eq!(Timing::parse(&stacked).squeezed(), 0);
+    }
+
+    #[test]
+    fn a_copy_is_uneven_only_next_to_cleaner_copies_of_the_song() {
+        let clean = tapped_late(&[]);
+        let shifted = tapped_late(&[30]);
+        let sloppy = tapped_late(&[5, 12, 20, 27, 34]);
+        assert_eq!(
+            uneven(&[Some(&clean), Some(&shifted), Some(&sloppy), None]),
+            vec![false, false, true, false]
+        );
+        // Re-uploads of the sloppy copy do not make it the typical one.
+        assert_eq!(
+            uneven(&[Some(&sloppy), Some(&sloppy), Some(&sloppy), Some(&clean)]),
+            vec![true, true, true, false]
+        );
+        // Nothing to compare with, or every copy alike.
+        assert_eq!(uneven(&[Some(&sloppy), Some(&sloppy), None]), vec![false, false, false]);
+        let also_sloppy = tapped_late(&[6, 13, 21, 28, 35]);
+        assert_eq!(uneven(&[Some(&sloppy), Some(&also_sloppy)]), vec![false, false]);
+        // A few more squeezed lines than the others is ordinary.
+        assert_eq!(uneven(&[Some(&clean), Some(&tapped_late(&[5, 12, 20]))]), vec![false, false]);
+        assert_eq!(uneven(&[]), Vec::<bool>::new());
     }
 
     #[test]

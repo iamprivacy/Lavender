@@ -10,7 +10,9 @@
 //! `tolerant.rs`. A tolerant hit comes back with a `MatchNote` so the download
 //! log can say how it was matched. Online results never carry a note. With
 //! tolerant matching on, an exact hit is the best of the rows that match
-//! alike by the tolerant ranking, not the oldest as the server answers.
+//! alike by the tolerant ranking, not the oldest as the server answers, and
+//! an exact hit whose synced lyrics are timed unevenly gives way to a clean
+//! copy of the same recording under another album (`evener_copy`).
 //!
 //! Publishing and flagging never come through here; they always go online.
 //!
@@ -23,6 +25,7 @@ use std::future::Future;
 use tauri::{AppHandle, Manager};
 
 use super::config::{ForkConfig, LyricsSource};
+use super::content::Timing;
 use super::edition::{self, Edition};
 use super::queries;
 use super::tolerant::{self, MatchNote, MatchRule, TrackRequest};
@@ -127,6 +130,8 @@ pub async fn get_raw_noted(
                         album_matched: true,
                         through_search_index: false,
                         tier: 0,
+                        uneven: false,
+                        passed_over_uneven: false,
                     }),
                 ));
             }
@@ -173,6 +178,14 @@ pub async fn get_raw_noted(
                     )? {
                         return Ok((uncensored(db, wanted, synced)?.into_get_response(), Some(note)));
                     }
+                }
+                // An exact hit whose synced lyrics are timed unevenly gives
+                // way to a cleaner copy of the same performance filed under
+                // another album or spelling (a single next to the album, a
+                // deluxe edition). The album decides which row the server
+                // would answer with, not which copy plays in time.
+                if let Some((even, note)) = evener_copy(db, &request, &track)? {
+                    return Ok((uncensored(db, wanted, even)?.into_get_response(), Some(note)));
                 }
                 return Ok((uncensored(db, wanted, track)?.into_get_response(), None));
             }
@@ -313,6 +326,48 @@ fn best_sibling(
     Ok(tolerant::best_of(request, siblings)
         .map(|(track, _)| track)
         .unwrap_or_else(|| exact.clone()))
+}
+
+/// The copy to take over an exact hit whose synced lyrics are timed unevenly:
+/// the best row of the tolerant ranking with synced lyrics that are not
+/// uneven, when that ranking marks the hit uneven (`content::uneven`; it
+/// does so only next to a cleaner copy of the same performance that ranks at
+/// least as high). `None` keeps the hit. The other rows are fetched only when
+/// the hit has enough squeezed lines to be uneven at all, so a clean hit
+/// costs one parse and no query.
+fn evener_copy(
+    db: &OpenDb,
+    request: &TrackRequest,
+    exact: &queries::LocalTrack,
+) -> Result<Option<(queries::LocalTrack, MatchNote)>, LocalDbError> {
+    fn has_synced_text(track: &queries::LocalTrack) -> Option<&str> {
+        track.lyrics.as_ref()?.synced_lyrics.as_deref()
+    }
+    if !has_synced_text(exact).is_some_and(|text| Timing::parse(text).may_be_uneven()) {
+        return Ok(None);
+    }
+    let ranked = tolerant::find_ranked(
+        &db.conn,
+        db.info.columns(),
+        db.info.has_fts,
+        db.info.has_metadata_index(),
+        request,
+    )?;
+    if !ranked.iter().any(|(track, note)| track.id == exact.id && note.uneven) {
+        return Ok(None);
+    }
+    Ok(ranked
+        .into_iter()
+        .find(|(track, note)| !note.uneven && has_synced_text(track).is_some())
+        .map(|(track, note)| {
+            (
+                track,
+                MatchNote {
+                    passed_over_uneven: true,
+                    ..note
+                },
+            )
+        }))
 }
 
 /// With uncensored lyrics wanted and the row's newest upload masking words
@@ -1017,6 +1072,39 @@ mod tests {
         assert_eq!(response.album_name.as_deref(), Some("1993 - Pablo Honey"));
         assert_eq!(response.synced_lyrics.as_deref(), Some("[00:01.00] studio take"));
         assert!(note.is_some_and(|note| !note.album_matched), "a tolerant swap says how it matched");
+    }
+
+    #[test]
+    fn an_exact_hit_timed_unevenly_is_swapped_for_a_clean_copy_of_the_same_recording() {
+        use super::super::test_support::tapped_late;
+        let dir = tempfile::tempdir().unwrap();
+        let path = fixture_db(dir.path());
+        let sloppy = tapped_late(&[5, 12, 20, 27, 34]);
+        {
+            // The file is tagged with the single, whose only row is sloppy;
+            // the album's row of the same recording is clean.
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            insert_row(&conn, 9300, "Wrath", "Lorna Shore", "Wrath", 280.0, Some(&sloppy), None, false);
+            insert_row(&conn, 9301, "Wrath", "Lorna Shore", "Pain Remains", 281.0, Some(&tapped_late(&[])), None, false);
+        }
+        let (response, note) = local_get(&path, "Wrath", "Wrath", "Lorna Shore", 280.0);
+        assert_eq!(response.album_name.as_deref(), Some("Pain Remains"));
+        let note = note.expect("the swap says how it matched");
+        assert!(note.passed_over_uneven && !note.album_matched);
+        assert!(note.text().ends_with("; the album's own copy is timed unevenly"));
+
+        // A few squeezed lines are ordinary: the exact hit stands.
+        {
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            conn.execute(
+                "UPDATE lyrics SET synced_lyrics = ?1 WHERE track_id = 9300",
+                rusqlite::params![tapped_late(&[5, 12, 20])],
+            )
+            .unwrap();
+        }
+        let (response, note) = local_get(&path, "Wrath", "Wrath", "Lorna Shore", 280.0);
+        assert_eq!(response.album_name.as_deref(), Some("Wrath"));
+        assert!(note.is_none());
     }
 
     #[test]

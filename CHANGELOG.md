@@ -25,6 +25,30 @@ A bullet that closes a reported issue names it in full and links to it:
 `(#11)`. These notes are read outside the repo, where a bare number is neither
 a link nor obviously an issue. A test enforces it.
 
+## 🗂️ v0.1.2 (2026-11-14)
+
+<p align="center">
+  <strong>💜 If you enjoy Lavender, a star on this repo goes a long way, and if you'd like to help me afford to keep developing it, consider donating.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/iamprivacy"><img src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
+Lavender now picks better-timed synced lyrics. To bring songs you already downloaded up to date, click **Download all lyrics**, choose **Upgrade to the best match** under "Download lyrics for" and click **Download** (the choice appears when the lyrics source is set to Local database). The first Upgrade run after this update looks at every track again, even ones an earlier run kept, and replaces lyrics only where the database has a better copy; lyrics you edited yourself or got from elsewhere are left alone.
+
+### 🔧 Changed
+
+- 📡 Scanning reads new songs several at a time and opens each file once, skipping cover art and checking for .txt and .lrc lyrics with one look at each folder, so first scans and new music on network shares go noticeably faster.
+- 🧭 A saved scan follows its folder to another drive letter or mount path: add the folder from its new place and its songs come back without a rescan.
+- ⏱️ Synced lyrics timed unevenly (stamps tapped late, so lines run ahead and behind the singing) now give way to a cleaner copy of the same recording, even one filed under another album; the download log says when the album's own copy was passed over for its timing, and Upgrade to the best match replaces such a copy already saved, forgetting once which tracks earlier Upgrade runs kept so it looks at them again. Uploads of the song now vote once each when Lavender checks which timing the others agree with, and two copies are compared the same way round whichever is read first.
+
+### 🐛 Fixed
+
+- 🚀 Adding a removed folder back from its saved scan is fast again; before, it slowed down sharply with the size of the folder, as every restored song searched all unlinked lyrics. A full rescan is faster for the same reason.
+- 🔌 A library folder on a network share or drive that is not connected keeps its songs; before, a scan while it was offline removed them all and the next scan read every file again. Lavender now says which folder it could not reach.
+- 📂 When a saved scan of a removed folder cannot be forgotten, Lavender now says so and why; before, Forget did nothing and showed nothing.
+
 ## 🗂️ v0.1.1 (2026-11-09)
 
 <p align="center">

@@ -51,8 +51,6 @@ Module-level ref composables (singletons by design):
 
 **Boot Flow**: `main.js` → Vue app init → `App.vue` checks `get_init()` → shows `ChooseDirectory.vue` (setup) or `Library.vue` (main). Loads config, applies theme, starts downloader loop.
 
-**Start-up splash (Lavender)**: `index.html` loads `public/splash.css` and `public/splash.js` as plain files (no bundling), so the splash in `#splash` paints with the first frame, before `main.js` runs. Once `App.vue` has applied the theme it calls `window.lavenderSplash.hide()`; the splash stays at least 2.5 s (counted from when it is drawn, not from when the window opened), plays its exit (~1 s) and removes itself. If `hide()` never comes (a start-up error) it steps aside after 30 s. The window's `backgroundColor` in `tauri.conf.json` is the splash's dark, so there is no white flash. The design was chosen in `labs/splash-lab.html`.
-
 ## UI Architecture
 
 **Main Shells**:
@@ -315,3 +313,7 @@ now owned by the backend (`src-tauri/src/download_run.rs`) and
   `download-options.test.js`, `export-workflows.test.js` and
   `skip-checked.test.js` now assert on the `start_download_run` and
   `filter_checked_track_ids` calls.
+
+## Lavender: start-up splash
+
+`index.html` loads `public/splash.css` and `public/splash.js` as plain files (no bundling), so the splash in `#splash` paints with the first frame, before `main.js` runs. Once `App.vue` has applied the theme it calls `window.lavenderSplash.hide()`; the splash stays at least 2.5 s (counted from when it is drawn, not from when the window opened), plays its exit (~1 s) and removes itself. If `hide()` never comes (a start-up error) it steps aside after 30 s. The window's `backgroundColor` in `tauri.conf.json` is the splash's dark, so there is no white flash. The design was chosen in `labs/splash-lab.html`.

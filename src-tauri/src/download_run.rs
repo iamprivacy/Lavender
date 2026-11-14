@@ -136,7 +136,7 @@ pub struct RunEvent {
 
 /// A queued track waiting to be processed.
 #[derive(Debug, PartialEq)]
-pub struct PendingItem {
+pub(crate) struct PendingItem {
     pub position: i64,
     pub track_id: i64,
     pub upgrade: bool,
@@ -240,7 +240,7 @@ pub fn set_status(conn: &Connection, status: &str, reason: Option<&str>) -> rusq
 /// runs again, as upstream's counters kept growing until Finish was
 /// pressed. `skipped` is how many tracks the not-found memory left out
 /// before these were queued.
-pub fn enqueue(
+pub(crate) fn enqueue(
     conn: &Connection,
     track_ids: &[i64],
     auto_export: Option<&AutoExportOptions>,
@@ -272,7 +272,7 @@ pub fn enqueue(
     transaction.commit()
 }
 
-pub fn next_pending(conn: &Connection) -> rusqlite::Result<Option<PendingItem>> {
+pub(crate) fn next_pending(conn: &Connection) -> rusqlite::Result<Option<PendingItem>> {
     conn.query_row(
         "SELECT position, track_id, upgrade, auto_export FROM download_run_items
          WHERE status IS NULL ORDER BY position LIMIT 1",
@@ -524,7 +524,7 @@ fn start_worker(app: &AppHandle) {
 /// another. True when the worker should exit.
 fn finish_if_done(app: &AppHandle, stop: &Arc<AtomicBool>) -> bool {
     let state = state(app);
-    let mut worker = lock(&state.worker);
+    let worker = lock(&state.worker);
     let done = app.db(|conn| {
         if pending_count(conn)? > 0 {
             return Ok::<_, rusqlite::Error>(false);
@@ -670,7 +670,7 @@ async fn work(app: &AppHandle, stop: &Arc<AtomicBool>) {
 }
 
 #[tauri::command]
-pub async fn start_download_run(
+pub(crate) async fn start_download_run(
     track_ids: Vec<i64>,
     auto_export: Option<AutoExportOptions>,
     upgrade: Option<bool>,

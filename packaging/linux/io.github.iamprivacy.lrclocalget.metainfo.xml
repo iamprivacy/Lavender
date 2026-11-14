@@ -19,6 +19,17 @@
   <url type="bugtracker">https://github.com/iamprivacy/Lavender/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.2" date="2026-11-14">
+      <description>
+        <ul>
+          <li>Better-timed synced lyrics: an unevenly timed copy gives way to a clean copy of the same recording</li>
+          <li>Faster scans, above all of new music on network shares</li>
+          <li>A saved scan follows its folder to another drive letter or mount path</li>
+          <li>A network folder that is not connected keeps its songs, and Lavender says which folder it could not reach</li>
+          <li>Adding a removed folder back from its saved scan is fast again</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.1" date="2026-11-09">
       <description>
         <ul>

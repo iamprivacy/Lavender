@@ -1623,8 +1623,10 @@ pub fn find_orphaned_lyricsfile_tx(
 ) -> Result<Option<i64>> {
     let result = tx
         .query_row(
+            // Lavender: without the hint SQLite searches the track_id index
+            // for NULL and walks every unlinked row, once per track scanned
             indoc! {"
-                SELECT id FROM lyricsfiles
+                SELECT id FROM lyricsfiles INDEXED BY idx_lyricsfiles_track_title_lower
                 WHERE track_id IS NULL
                   AND track_title_lower = ?
                   AND track_artist_name_lower = ?

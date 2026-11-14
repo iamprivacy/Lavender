@@ -511,6 +511,8 @@ src-tauri/src/local_db/
 ├── config.rs       # fork_config table (lyrics_source, local_db_path, fallback_online, tolerant_matching, skip_checked, the extra-source switches, the Apple token, export_word_timestamps, lyrics_edition)
 ├── edition.rs      # explicit and clean editions: badges, masked words, the lyrics_edition setting and the stand-in upload rule
 ├── attempts.rs     # lookup_attempts table: misses remembered per dump, fingerprint of the tags, skip filter
+├── parked.rs       # Saved scans of removed folders, folders followed to a new path, unreachable folders kept
+├── scan_read.rs    # The library scan's read-ahead: hashes, tags and lyrics files of a batch, several at a time
 ├── commands.rs     # Tauri commands for the settings UI
 ├── extra/
 │   ├── mod.rs      # Extra-source ladder: enabled sources, candidate ranking, LookupNote, after_lrclib
@@ -750,6 +752,29 @@ src-tauri/src/local_db/
 - **Events:** `local-db-status` (`LocalDbStatus`), `local-db-decompress-progress`
   (`DecompressProgress`), `local-db-update-progress` (`UpdateProgress`, which
   carries the download and decompression progress of the running update).
+- **Library scan (`parked.rs`, `scan_read.rs`):** upstream's scanner
+  (`scanner/scan.rs`, "File Scanning" above) calls into these at the hook
+  points listed in `FORK_CHANGES.md`.
+  - Before each batch, `scan_read::read_ahead` reads the files the batch will
+    open (no fingerprint match and no saved scan; in Hash mode every file for
+    its hash) on an 8-thread pool, one open per file: quick hash, then tags
+    without cover art. Lyrics files are found in one listing per folder; a
+    song whose name and some listed lyrics name both hold characters outside
+    ASCII is checked by name the upstream way, since macOS opens either
+    Unicode spelling of a name for the other. Tags that lack a field the
+    scanner needs are kept as upstream's error. `process_batch` takes hashes
+    and tags from it and falls back to upstream's readers for anything else.
+  - Tracks of a removed folder are parked and restored by path, size and
+    modified time without opening the file. A saved folder that comes back
+    under another path is followed file by file: a file at the same place
+    inside with the same size and modified time takes its saved row.
+  - A library folder that cannot be read or is completely empty keeps its
+    tracks (`parked::prepare_unprocessed_delete`), and the scan queues one
+    warning per such folder.
+  - The orphaned lyricsfile lookup in `db.rs` names
+    `idx_lyricsfiles_track_title_lower`; left alone SQLite used the
+    `track_id` index for `IS NULL` and read every unlinked row per added
+    track.
 - **Tests:** `cargo test local_db`. The fixture is built at test time from the
   server's real schema (`local_db_schema/`, MIT) and `tests/fixtures/lrclib/records.json`
   (invented edge cases plus a few real records fetched once by
@@ -815,9 +840,10 @@ src-tauri/src/local_db/
 Fork addition, registered from `main.rs` (plugin, `init`, commands; see
 `FORK_CHANGES.md`). Releases come only from `iamprivacy/Lavender`.
 
-- `version.rs`: parses `2.2.0` and `v2.2.0-local.N` (anything else never counts
-  as newer) and builds the running version from `CARGO_PKG_VERSION` plus the
-  compile-time `LAVENDER_RELEASE`.
+- `version.rs`: parses `0.1.1`, `v0.1.1` and a test build's `v0.1.1-local.N`
+  (anything else never counts as newer) and builds the running version from
+  `CARGO_PKG_VERSION`, Lavender's own version, plus the compile-time
+  `LAVENDER_RELEASE` that only test builds set.
 - `manifest.rs`: verifies `SHA256SUMS.sig` (minisign, base64 as written by
   `tauri signer sign`) over the exact `SHA256SUMS` bytes, reads the
   `# lavender-version:` line and the per-file hashes, and hashes with `ring`.

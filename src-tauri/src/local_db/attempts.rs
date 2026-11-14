@@ -25,8 +25,11 @@
 //! same keys plus a hash of the lyrics it kept and the export formats the
 //! run wrote, so the next Upgrade run leaves the track out until the
 //! lyrics, the tags, the database, the lookup settings or the export
-//! selection change. A saved upgrade forgets the row. Both memories share
-//! the write queue, the settings' count and the Forget button.
+//! selection change. A saved upgrade forgets the row. A change to the
+//! ranking forgets every row once (`config::RANKING_CHANGED`), since a
+//! track kept under the old ranking may now have a better row. Both
+//! memories share the write queue, the settings' count and the Forget
+//! button.
 
 use std::collections::{HashMap, HashSet};
 
@@ -316,6 +319,8 @@ impl Pending {
         was_empty
     }
 
+    // No `is_empty`: the queue is only asked whether a batch is full.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.writes.len()
     }

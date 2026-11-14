@@ -413,6 +413,8 @@ async fn full_scan_library(
 
     // Emit completion event
     let _ = app_handle.emit("scan-complete", &scan_result);
+    // Lavender: warn about library folders the scan could not reach
+    local_db::parked::notify_unreachable(&app_state.queued_notifications);
 
     Ok(scan_result)
 }
@@ -459,6 +461,8 @@ async fn scan_library(
 
     // Emit completion event
     let _ = app_handle.emit("scan-complete", &scan_result);
+    // Lavender: warn about library folders the scan could not reach
+    local_db::parked::notify_unreachable(&app_state.queued_notifications);
 
     Ok(scan_result)
 }

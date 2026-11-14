@@ -108,7 +108,11 @@ title, length and artist rules.
   upload. Lavender ranks them by artist, album, synced over plain, and then by
   the lyrics themselves: broken timing, lyrics that stop early or a stray
   credits line count against an upload, and timing that most uploads agree on
-  counts for it. Search Lyrics shows this order and marks the "Best match".
+  counts for it (a copy uploaded many times counts once). A copy timed
+  unevenly, with lines that run ahead of the singing and fall behind again,
+  gives way to a cleaner copy of the same recording even when that one is
+  filed under another album. Search Lyrics shows this order and marks the
+  "Best match".
 - **The right performance.** A studio track gets the studio lyrics, not a live
   or acoustic take's, and a track tagged "(Live)" gets the live take's when the
   database has it.

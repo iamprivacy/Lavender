@@ -33,7 +33,8 @@
 
       <div v-if="savedScans.length" class="flex flex-col gap-2 w-full">
         <div class="text-sm text-neutral-600 dark:text-neutral-400">
-          Saved scans of removed folders. Adding one back restores it without a rescan.
+          Saved scans of removed folders. Adding one back restores it without a rescan. Moved to
+          another drive or path? Add the folder from its new place and its saved scan is used.
         </div>
         <div
           v-for="saved in savedScans"
@@ -73,9 +74,11 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { audioDir } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core'
 import { ref, computed, onMounted } from 'vue'
+import { useToast } from 'vue-toastification'
 import Close from '~icons/mdi/close'
 import Plus from '~icons/mdi/plus'
 const emit = defineEmits(['progressStep', 'directoriesChanged'])
+const toast = useToast()
 
 const directories = ref([])
 const originalDirectories = ref([])
@@ -108,7 +111,12 @@ const forget = async path => {
     return
   }
   confirmingForget.value = null
-  await invoke('forget_parked_folder', { path })
+  try {
+    await invoke('forget_parked_folder', { path })
+  } catch (error) {
+    console.error(error)
+    toast.error(`The saved scan was not forgotten: ${error}`)
+  }
   await loadParkedFolders()
 }
 

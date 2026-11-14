@@ -20,7 +20,8 @@
 //! restart; on Windows the verified installer runs when the user restarts.
 //!
 //! The Tauri updater's own version check is bypassed (its comparator always
-//! says yes) because the app version stays upstream's `2.2.0`; the decision is
+//! says yes) because it only knows the app version, not a test build's
+//! `-local.N` release number (`version.rs`); the decision is
 //! made above from the signed manifest, which also closes the gap the
 //! updater's unsigned endpoint leaves (pairing a newer version number with an
 //! older, validly signed package).

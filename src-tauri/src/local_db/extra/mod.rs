@@ -235,12 +235,9 @@ where
 /// names), smallest length gap, then the source's own order.
 pub fn pick(matcher: &Matcher, candidates: Vec<Candidate>) -> Vec<(Candidate, MatchRule, bool)> {
     let tagged_title = matcher.tagged_title();
-    let mut accepted: Vec<(
-        (bool, bool, MatchRule, bool, bool, i64, usize),
-        Candidate,
-        MatchRule,
-        bool,
-    )> = candidates
+    // The ranking key, in the order of the doc comment above; smaller is better.
+    type RankKey = (bool, bool, MatchRule, bool, bool, i64, usize);
+    let mut accepted: Vec<(RankKey, Candidate, MatchRule, bool)> = candidates
         .into_iter()
         .enumerate()
         .filter_map(|(position, candidate)| {
@@ -266,7 +263,7 @@ pub fn pick(matcher: &Matcher, candidates: Vec<Candidate>) -> Vec<(Candidate, Ma
             ))
         })
         .collect();
-    accepted.sort_by(|a, b| a.0.cmp(&b.0));
+    accepted.sort_by_key(|entry| entry.0);
     accepted
         .into_iter()
         .map(|(_, candidate, rule, album_matched)| (candidate, rule, album_matched))
@@ -795,6 +792,8 @@ mod tests {
             album_matched: true,
             through_search_index: false,
             tier: 0,
+            uneven: false,
+            passed_over_uneven: false,
         };
         assert_eq!(
             LookupNote::Local(local).text(),

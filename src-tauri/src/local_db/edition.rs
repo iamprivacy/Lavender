@@ -121,7 +121,7 @@ pub fn from_rating(rating: Option<&str>) -> Option<Edition> {
 /// separator or an instrumental break marker) is not one, a single trailing
 /// asterisk ("Hello*") is a footnote mark and "*chorus*" an annotation.
 pub fn masked(text: &str) -> bool {
-    text.split_whitespace().any(|token| masked_token(token))
+    text.split_whitespace().any(masked_token)
 }
 
 fn masked_token(token: &str) -> bool {

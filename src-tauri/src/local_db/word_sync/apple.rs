@@ -41,7 +41,7 @@ use serde::Deserialize;
 
 use super::{lyricsfile, ttml};
 use crate::local_db::config::ForkConfig;
-use crate::local_db::edition::{self, Edition};
+use crate::local_db::edition;
 use crate::local_db::extra::{self, first_answer, pick, Candidate, ExtraNote, ExtraSource};
 use crate::local_db::tolerant::{MatchRule, Matcher, TrackRequest};
 use crate::lrclib::get::RawResponse;
@@ -526,7 +526,7 @@ pub async fn check_token(token: &str) -> anyhow::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::local_db::edition::EditionPreference;
+    use crate::local_db::edition::{Edition, EditionPreference};
 
     const SEARCH_HELLO: &str = include_str!("../../../tests/fixtures/apple/search_hello.json");
     const LYRICS_HELLO: &str =

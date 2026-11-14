@@ -10,7 +10,15 @@ use serde::{Deserialize, Serialize};
 
 use super::edition::EditionPreference;
 
-pub const SCHEMA_VERSION: i64 = 11;
+pub const SCHEMA_VERSION: i64 = 12;
+/// The version from which a change to how local rows are ranked last made
+/// earlier Upgrade checks stale (`attempts::upgrade_checks`): version 12, when
+/// unevenly timed copies began to give way. A track the Upgrade run kept
+/// under the old ranking may now have a better row, so those checks are
+/// forgotten once and the next Upgrade run looks at every track again.
+/// Remembered misses stay: the ranking does not change what the database
+/// can answer.
+const RANKING_CHANGED: i64 = 12;
 
 fn default_true() -> bool {
     true
@@ -187,6 +195,9 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         add_column(conn, "fork_config", "apple_user_token", "TEXT")?;
         add_column(conn, "fork_config", "export_word_timestamps", "INTEGER NOT NULL DEFAULT 0")?;
         add_column(conn, "fork_config", "lyrics_edition", "TEXT NOT NULL DEFAULT 'follow-file'")?;
+        if version < RANKING_CHANGED {
+            conn.execute("DELETE FROM upgrade_checks", [])?;
+        }
         conn.execute(
             "UPDATE fork_config SET schema_version = ?1 WHERE id = 1",
             [SCHEMA_VERSION],
@@ -460,6 +471,33 @@ mod tests {
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
         ensure_table(&conn).unwrap();
+    }
+
+    #[test]
+    fn a_ranking_change_forgets_the_upgrade_checks_once_and_keeps_the_misses() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_table(&conn).unwrap();
+        let remember = |conn: &Connection| {
+            conn.execute_batch(
+                "INSERT INTO upgrade_checks (track_id, fingerprint, dump_key, lyrics_hash, online_checked, tolerant, checked_at)
+                 VALUES (1, 'f', 'k', 'h', 0, 1, datetime('now'));
+                 INSERT OR IGNORE INTO lookup_attempts (track_id, fingerprint, dump_key, online_checked, tolerant, checked_at)
+                 VALUES (2, 'f', 'k', 0, 1, datetime('now'));",
+            )
+            .unwrap();
+        };
+        let count = |conn: &Connection, table: &str| -> i64 {
+            conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap()
+        };
+        remember(&conn);
+        conn.execute("UPDATE fork_config SET schema_version = 11", []).unwrap();
+        ensure_table(&conn).unwrap();
+        assert_eq!(count(&conn, "upgrade_checks"), 0, "kept under the old ranking, looked at again");
+        assert_eq!(count(&conn, "lookup_attempts"), 1, "misses still hold");
+        // Once only: checks made under the new ranking survive later starts.
+        remember(&conn);
+        ensure_table(&conn).unwrap();
+        assert_eq!(count(&conn, "upgrade_checks"), 1);
     }
 
     #[test]

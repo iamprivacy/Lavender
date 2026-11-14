@@ -108,6 +108,6 @@ jobs:
           git init -q -b main
           git add Casks/lavender.rb README.md
           git -c user.name="github-actions[bot]" \
-              -c user.email="41898828+github-actions[bot]@users.noreply.github.com" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -q -m "lavender ${VERSION}"
           git push --quiet --force "$url" main
