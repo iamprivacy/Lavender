@@ -115,7 +115,18 @@
       </button>
 
       <button
-        v-if="isExporting && exportedCount + skippedCount + errorCount < exportTotalCount"
+        v-if="isExporting && exportPaused"
+        class="button button-normal h-full min-w-[7rem] px-2 text-xs rounded-full"
+        @click.prevent="$emit('showExportViewer')"
+      >
+        <div class="flex gap-1">
+          <div>Export paused</div>
+          <div>{{ exportDoneCount }}/{{ exportTotalCount }}</div>
+        </div>
+      </button>
+
+      <button
+        v-else-if="isExporting && exportDoneCount < exportTotalCount"
         class="button button-working h-full min-w-[7rem] px-2 text-xs rounded-full"
         @click.prevent="$emit('showExportViewer')"
       >
@@ -338,9 +349,8 @@ const {
 
 const {
   isExporting,
-  exportedCount,
-  skippedCount,
-  errorCount,
+  isPaused: exportPaused,
+  doneCount: exportDoneCount,
   totalCount: exportTotalCount,
 } = useExporter()
 </script>

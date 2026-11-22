@@ -2,7 +2,7 @@
   <BaseModal
     content-class="w-full h-[80vh] max-w-screen-md"
     body-class="flex flex-col h-full min-h-0 justify-between gap-6"
-    :title="isFinished ? 'Export Complete' : 'Exporting Lyrics'"
+    :title="title"
     @close="checkAndClose"
   >
     <div class="flex flex-col items-center justify-center gap-1">
@@ -11,53 +11,79 @@
       </div>
       <div class="text-[0.7rem] text-neutral-500 dark:text-neutral-500 flex gap-3">
         <span>{{ exportedCount }} EXPORTED</span>
+        <span
+          v-if="unchangedCount"
+          title="The file already held these lyrics, so it was left as it was"
+          >{{ unchangedCount }} UNCHANGED</span
+        >
         <span>{{ skippedCount }} SKIPPED</span>
         <span>{{ errorCount }} ERRORS</span>
         <span>{{ totalCount }} TOTAL</span>
       </div>
+      <p v-if="notice" class="notice">{{ notice }}</p>
     </div>
 
     <div class="rounded-lg p-3 bg-white dark:bg-neutral-950 w-full text-xs grow overflow-auto">
-      <div v-for="(logItem, index) in log" :key="index" class="mb-1">
-        <div
-          :class="{
-            'text-green-800 dark:text-green-400': logItem.status === 'exported',
-            'text-yellow-800 dark:text-yellow-400': logItem.status === 'skipped',
-            'text-red-800 dark:text-red-400': logItem.status === 'error',
-          }"
-        >
-          <strong>{{ logItem.title }} - {{ logItem.artistName }}</strong
-          >:
-          <span>{{ logItem.message }}</span>
-        </div>
-        <!-- Show per-format details if available -->
-        <div
-          v-if="logItem.details && logItem.details.length > 0"
-          class="pl-4 mt-0.5 text-neutral-500 dark:text-neutral-500"
-        >
-          <div
-            v-for="detail in logItem.details"
-            :key="detail.format"
-            :class="getDetailStatusClass(detail)"
-          >
-            • {{ detail.format }}: {{ getDetailMessage(detail) }}
-          </div>
-        </div>
+      <div
+        v-for="logItem in log"
+        :key="logItem.id"
+        class="mb-1"
+        :class="{
+          'text-green-800 dark:text-green-400': logItem.status === 'exported',
+          'text-neutral-600 dark:text-neutral-400': logItem.status === 'unchanged',
+          'text-yellow-800 dark:text-yellow-400': logItem.status === 'skipped',
+          'text-red-800 dark:text-red-400': logItem.status === 'error',
+        }"
+      >
+        <strong>{{ logItem.title }} - {{ logItem.artistName }}</strong
+        >:
+        <span>{{ logItem.message }}</span>
       </div>
     </div>
 
     <template #footer>
-      <div class="flex-none flex justify-center">
-        <button
-          v-if="isFinished"
-          class="button button-primary px-8 py-2 rounded-full"
-          @click="checkAndClose"
-        >
-          Finish
-        </button>
-        <button v-else class="button button-normal px-8 py-2 rounded-full" @click="handleStop">
-          Stop
-        </button>
+      <div class="flex-none flex justify-center gap-3">
+        <template v-if="isFinished">
+          <button
+            v-if="errorCount > 0"
+            class="button button-normal px-8 py-2 rounded-full"
+            title="Queues the tracks that failed once more"
+            @click="retryErrors"
+          >
+            Retry errors
+          </button>
+          <button class="button button-primary px-8 py-2 rounded-full" @click="checkAndClose">
+            Finish
+          </button>
+        </template>
+        <template v-else-if="isPaused">
+          <button
+            class="button button-normal px-8 py-2 rounded-full"
+            title="Forgets this run; the files already written stay"
+            @click="handleStop"
+          >
+            Discard
+          </button>
+          <button class="button button-primary px-8 py-2 rounded-full" @click="resumeExporting">
+            Resume
+          </button>
+        </template>
+        <template v-else>
+          <button
+            class="button button-normal px-8 py-2 rounded-full"
+            title="Keeps the run so it can be resumed later, even after a restart"
+            @click="pauseExporting"
+          >
+            Pause
+          </button>
+          <button
+            class="button button-normal px-8 py-2 rounded-full"
+            title="Ends the run and forgets its progress; the files already written stay"
+            @click="handleStop"
+          >
+            Stop
+          </button>
+        </template>
       </div>
     </template>
   </BaseModal>
@@ -67,47 +93,33 @@
 import { onUnmounted, computed } from 'vue'
 import { useExporter } from '@/composables/export.js'
 
+// Lavender: the dialog mirrors the backend's export run (see export.js). It
+// can be paused and resumed, survives a reload and a restart (an
+// interrupted run is offered again), and can queue the tracks that failed
+// once more.
 const {
-  isExporting,
+  run,
   exportProgress,
   exportedCount,
+  unchangedCount,
   skippedCount,
   errorCount,
   totalCount,
+  doneCount,
+  isPaused,
+  isInterrupted,
+  isFinished,
   log,
   startOver,
   stopExporting,
+  pauseExporting,
+  resumeExporting,
+  retryErrors,
 } = useExporter()
-
-const getDetailStatusClass = detail => {
-  const statusType = detail.status?.type
-  if (statusType === 'success') {
-    return 'text-green-700 dark:text-green-500'
-  } else if (statusType === 'skipped') {
-    return 'text-yellow-700 dark:text-yellow-500'
-  } else if (statusType === 'error') {
-    return 'text-red-700 dark:text-red-500'
-  }
-  return 'text-neutral-500 dark:text-neutral-500'
-}
-
-const getDetailMessage = detail => {
-  const statusType = detail.status?.type
-  if (statusType === 'success') {
-    return 'exported successfully'
-  } else if (statusType === 'skipped' || statusType === 'error') {
-    return detail.status?.message || 'unknown'
-  }
-  return 'unknown status'
-}
 
 const emit = defineEmits(['close'])
 
 const progressWidth = computed(() => {
-  if (!isExporting.value) {
-    return '100%'
-  }
-
   if (exportProgress.value >= 1.0) {
     return '100%'
   }
@@ -115,10 +127,26 @@ const progressWidth = computed(() => {
   return `${exportProgress.value * 100}%`
 })
 
-const isFinished = computed(() => {
-  if (!isExporting.value) return true
-  if (totalCount.value === 0) return false
-  return exportedCount.value + skippedCount.value + errorCount.value >= totalCount.value
+const title = computed(() => {
+  if (isFinished.value) return 'Export Complete'
+  if (isInterrupted.value) return 'Export interrupted'
+  if (isPaused.value) return 'Export paused'
+  return 'Exporting Lyrics'
+})
+
+const left = computed(() => Math.max(totalCount.value - doneCount.value, 0))
+
+const notice = computed(() => {
+  if (isInterrupted.value) {
+    return `Lavender was closed before this export finished. ${doneCount.value.toLocaleString()} of ${totalCount.value.toLocaleString()} tracks are done; Resume continues with the ${left.value.toLocaleString()} left.`
+  }
+  if (isPaused.value && run.value.pauseReason === 'error') {
+    return `The export stopped: Lavender could not read or write its own database. ${left.value.toLocaleString()} tracks are left; Resume tries again.`
+  }
+  if (isPaused.value) {
+    return `Paused with ${left.value.toLocaleString()} tracks left. The export is kept until it is resumed or discarded, even across a restart.`
+  }
+  return ''
 })
 
 const handleStop = () => {
@@ -126,16 +154,24 @@ const handleStop = () => {
   emit('close')
 }
 
+// Closing a finished export forgets it, as upstream's Finish did; closing a
+// running or paused one leaves it, and the header button reopens it.
 const checkAndClose = () => {
   if (isFinished.value) {
     startOver()
-    emit('close')
-  } else {
-    emit('close')
   }
+  emit('close')
 }
 
 onUnmounted(() => {
-  checkAndClose()
+  if (isFinished.value) {
+    startOver()
+  }
 })
 </script>
+
+<style scoped>
+.notice {
+  @apply text-xs text-center px-4 text-neutral-600 dark:text-neutral-400;
+}
+</style>

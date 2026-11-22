@@ -20,5 +20,8 @@ tools/update-e2e/run.sh
 ```
 
 It needs the private release key (`lavender-release.key` next to the main
-checkout by default, or `KEY=...`). Work files go to `/private/tmp/lavender-update-e2e`
-(`WORK=...`; the script resolves symlinks, which Tauri refuses to run from). The two builds take a few minutes the first time.
+checkout by default, or `KEY=...`). Everything it writes stays inside the project, in `tools/update-e2e/work`
+(`WORK=...`, git-ignored; the script resolves symlinks, which Tauri refuses
+to run from), including the test app's data: the app runs with `HOME` and
+`CFFIXED_USER_HOME` set to `work/home`, so nothing lands in the user's
+Library folder. Delete `work` when done. The two builds take a few minutes the first time.

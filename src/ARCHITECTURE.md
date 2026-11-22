@@ -314,6 +314,33 @@ now owned by the backend (`src-tauri/src/download_run.rs`) and
   `skip-checked.test.js` now assert on the `start_download_run` and
   `filter_checked_track_ids` calls.
 
+## Lavender: the export run lives in the backend
+
+Fork addition, the same pattern as the download run above. `composables/export.js`
+no longer holds a queue: `exportNext()` (called once by `App.vue`) listens to the
+`export-run` event and reads `get_export_run`, keeping what is newer by
+`revision`. An event carries every log entry since the previous one (the
+backend sends a few a second), and the log keeps the latest 100 lines, keyed by
+queue position. `addToQueue(trackIds, formats)` is async and calls
+`start_export_run` with the ordered names (`txt`, `lrc`, `embedded`) taken from
+the submitted choice, so later submissions cannot change a queued batch.
+`startOver`/`stopExporting` call `clear_export_run`; `pauseExporting`,
+`resumeExporting` and `retryErrors` call the matching commands. Exposed state:
+`isExporting` (a run exists), `isActive` (running; `library-busy.js` uses it),
+`isPaused`, `isInterrupted`, `isFinished` (only a run that exists and finished,
+so the dialog opened before the run is queued never clears it),
+`needsAttention` (`Library.vue` opens the Export dialog for an interrupted run),
+and the counts `exportedCount`, `unchangedCount`, `skippedCount`, `errorCount`,
+`doneCount`, `totalCount`.
+
+`ExportViewer.vue` titles itself Exporting Lyrics, Export paused, Export
+interrupted or Export Complete, shows a notice for the paused and interrupted
+states, and offers Pause and Stop while running, Discard and Resume while
+paused, "Retry errors" (when any failed) and Finish when done. An `UNCHANGED`
+counter appears once a file was left alone because it already held the same
+lyrics. `LibraryHeader.vue` shows "Export paused n/m" for a paused run. Tests:
+`composables/export.test.js` and the batch case in `export-workflows.test.js`.
+
 ## Lavender: start-up splash
 
 `index.html` loads `public/splash.css` and `public/splash.js` as plain files (no bundling), so the splash in `#splash` paints with the first frame, before `main.js` runs. Once `App.vue` has applied the theme it calls `window.lavenderSplash.hide()`; the splash stays at least 2.5 s (counted from when it is drawn, not from when the window opened), plays its exit (~1 s) and removes itself. If `hide()` never comes (a start-up error) it steps aside after 30 s. The window's `backgroundColor` in `tauri.conf.json` is the splash's dark, so there is no white flash. The design was chosen in `labs/splash-lab.html`.

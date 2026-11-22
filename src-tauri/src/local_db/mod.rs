@@ -154,6 +154,16 @@ pub struct LocalDbStatus {
     pub error: Option<String>,
 }
 
+/// Commits the queued lookup and upgrade memories before the app quits.
+/// Writes wait up to `attempts::BATCH_DELAY` for their batch, so without
+/// this a run that ended just before the app closed would forget its last
+/// tracks and check them again next time. A no-op before `init` ran.
+pub fn flush_on_exit(app: &AppHandle) {
+    if app.try_state::<LocalDbState>().is_some() {
+        attempts::flush(app);
+    }
+}
+
 /// Called once from Tauri's `setup`, after upstream opened the app database.
 /// Registers the state, creates the fork's config table and, when a local
 /// database is configured, opens it in the background.

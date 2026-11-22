@@ -5,7 +5,7 @@ served at /api/latest is read from $WORK/mode.txt on every request."""
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-E = os.environ.get("WORK", "/private/tmp/lavender-update-e2e")
+E = os.environ.get("WORK", os.path.join(os.path.dirname(os.path.abspath(__file__)), "work"))
 REL = os.path.join(E, "releases")
 
 

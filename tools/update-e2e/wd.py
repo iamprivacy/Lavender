@@ -17,7 +17,7 @@ import os
 import sys
 import urllib.request
 
-E = os.environ.get("WORK", "/private/tmp/lavender-update-e2e")
+E = os.environ.get("WORK", os.path.join(os.path.dirname(os.path.abspath(__file__)), "work"))
 BASE = "http://127.0.0.1:4445"
 
 

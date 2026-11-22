@@ -10,11 +10,19 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 export REPO="$(cd "$HERE/../.." && pwd)"
-# Resolved to its real path: Tauri refuses to run from a path with a symlink
-# in it (and /tmp is one on macOS), which the updater reports as a write error.
-WORK="${WORK:-/private/tmp/lavender-update-e2e}"
+# Everything the test writes stays in the project: the bundles, the fake
+# releases and the test app's own data (TEST_HOME below). Resolved to its
+# real path: Tauri refuses to run from a path with a symlink in it, which the
+# updater reports as a write error.
+WORK="${WORK:-$REPO/tools/update-e2e/work}"
 mkdir -p "$WORK"
 export WORK="$(cd -P "$WORK" && pwd)"
+# The test app's home: its settings, library, caches and web view data go
+# here instead of the user's Library folder (Foundation reads
+# CFFIXED_USER_HOME, Rust reads HOME). The app passes both on when it
+# restarts itself.
+TEST_HOME="$WORK/home"
+mkdir -p "$TEST_HOME/tmp"
 export KEY="${KEY:-$(cd "$(git -C "$REPO" rev-parse --git-common-dir)/.." && pwd)/lavender-release.key}"
 # The app version the builds carry (release N is $VERSION-local.N).
 export VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO/src-tauri/Cargo.toml" | head -n 1)"
@@ -31,7 +39,8 @@ check() { # $1 = description, $2 = expected substring, $3 = actual
 launch() {
   pkill -f "$APP" 2>/dev/null; sleep 2
   rm -rf "$WORK/install" && mkdir -p "$WORK/install" && cp -R "$WORK/old/Lavender.app" "$WORK/install/"
-  (nohup "$APP" > "$WORK/app.log" 2>&1 &)
+  (HOME="$TEST_HOME" CFFIXED_USER_HOME="$TEST_HOME" TMPDIR="$TEST_HOME/tmp" \
+    nohup "$APP" > "$WORK/app.log" 2>&1 &)
   wait_app
 }
 
@@ -105,5 +114,5 @@ cmp -s "$APP" "$WORK/old/Lavender.app/Contents/MacOS/Lavender" && r=unchanged ||
 check "refused updates leave release 1 in place" unchanged "$r"
 
 pkill -f "$APP"; pkill -f "$HERE/server.py"
-echo "test app data: ~/Library/Application Support/io.github.iamprivacy.lavender.e2etest"
+echo "test app data: $TEST_HOME (delete $WORK when done)"
 [ "$FAILED" = 0 ] && echo "ALL PASSED" || { echo "SOME FAILED"; exit 1; }

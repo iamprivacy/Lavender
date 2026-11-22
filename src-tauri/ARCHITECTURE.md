@@ -884,6 +884,52 @@ Fork addition, registered from `main.rs` (plugin, `init`, commands; see
   fake releases made like `release.yml` makes them, and drives the install,
   the restart and the refusals over WebDriver.
 
+## Lavender: backend-owned export run (`export_run.rs`)
+
+Fork addition, built like the download run above. Upstream drives the mass
+export from the webview (one `get_track` and one `export_track_lyrics` call
+per track, counts and log in Vue refs), so a reload of the page wiped the run
+and starting again wrote every file once more. The run is now two tables in
+the app's own database and a worker thread.
+
+- **Tables:** `export_run` (one row: `status` running / paused / finished,
+  `pause_reason` interrupted / user / error, and the counts `total`,
+  `exported`, `unchanged`, `skipped`, `errors`) and `export_run_items`
+  (`position`, `track_id`, `formats` as ordered names such as `txt,lrc`, and
+  once processed `status`, `title`, `artist_name`, `message`), indexed on
+  `(status, position)`. Unlike the download run, the counts live on the run
+  row and `record` bumps one of them in the same transaction as the item, so
+  `summary` costs the same at 70,000 tracks as at 10. `export_run_meta` holds
+  the `revision`, as for downloads.
+- **Worker** (`work`): a plain thread (the writers are blocking file I/O),
+  started by `start_export_run`, `resume_export_run` and
+  `retry_export_errors` unless one is running; a new worker joins a stopping
+  one first, so no track is taken twice. Per track it reads the track and
+  calls `export_one`: the lyricsfile is parsed, and each format is handled
+  in the queued order. A `.txt` or `.lrc` whose file already holds exactly
+  the text the writer would write (`sidecar_content`: the upstream
+  generators, or the enhanced LRC when the word-timestamps setting is on) is
+  left alone and counted as unchanged; the opposite sidecar is still
+  deleted, as the writer would. Everything else goes through
+  `word_sync::export::export_track`, the same writer single-track export and
+  auto-export use, with the embedding setting read at each embedded write.
+  Embedded lyrics are always written. Events (`export-run`, `RunEvent`: the
+  summary and the entries since the last event, oldest first, at most 100)
+  leave at most every `EMIT_EVERY` (250 ms) and when the run ends or pauses.
+- **Lifecycle and commands** are the download run's: `init` marks a run left
+  running as interrupted (one with nothing pending is cleared);
+  `start_export_run(track_ids, formats)` refuses an empty or unknown format
+  list, appends, marks the run running and answers the snapshot;
+  `get_export_run`, `pause_export_run`, `resume_export_run`,
+  `retry_export_errors` (`requeue_errors`, which also lowers the error
+  count) and `clear_export_run`.
+- **Frontend:** `composables/export.js` is a client of this run; see
+  `src/ARCHITECTURE.md`.
+- **Tests:** `cargo test export_run` (tables, counts, interrupted marking,
+  requeueing, clearing, format parsing, outcome wording, and on temp files
+  the unchanged skip, the opposite-sidecar removal and both sidecars asked
+  for).
+
 ## Lavender: backend-owned download run (`download_run.rs`)
 
 Fork addition. Upstream drives the mass download from the webview: the ids

@@ -10,6 +10,7 @@ pub mod lrclib;
 pub mod local_db;
 pub mod app_update;
 pub mod download_run;
+pub mod export_run;
 pub mod lyricsfile;
 pub mod parser;
 pub mod persistent_entities;
@@ -2023,6 +2024,12 @@ async fn main() {
             download_run::resume_download_run,
             download_run::retry_failed_downloads,
             download_run::clear_download_run,
+            export_run::start_export_run,
+            export_run::get_export_run,
+            export_run::pause_export_run,
+            export_run::resume_export_run,
+            export_run::retry_export_errors,
+            export_run::clear_export_run,
             app_update::commands::get_app_update_info,
             app_update::commands::check_app_update,
             app_update::commands::startup_app_update_check,
@@ -2041,6 +2048,7 @@ async fn main() {
             *app_state.db.lock().unwrap() = Some(db);
             local_db::init(&handle);
             download_run::init(&handle);
+            export_run::init(&handle);
             app_update::init(&handle);
 
             // Load config to get initial volume
@@ -2108,8 +2116,13 @@ async fn main() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                local_db::flush_on_exit(app);
+            }
+        });
 }
 
 #[cfg(test)]

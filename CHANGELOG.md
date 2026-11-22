@@ -25,6 +25,21 @@ A bullet that closes a reported issue names it in full and links to it:
 `(#11)`. These notes are read outside the repo, where a bare number is neither
 a link nor obviously an issue. A test enforces it.
 
+## 🗂️ v0.1.3 (2026-11-22)
+
+<p align="center">
+  <strong>💜 If you enjoy Lavender, a star on this repo goes a long way, and if you'd like to help me afford to keep developing it, consider donating.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/iamprivacy"><img src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
+### 🐛 Fixed
+
+- 📤 Export all lyrics keeps going if Lavender's window reloads or shows an error page, and it can be paused, resumed after a restart, and asked to retry the tracks that failed. Starting a new export leaves .lrc and .txt files that already hold the same lyrics untouched, so going over a large library again is much faster, and the export now writes word timestamps into .lrc files when that setting is on, as single-track exports already did.
+- 💾 Tracks a lookup or Upgrade run has checked are remembered even when Lavender is quit or restarts into an update right after the run, so the next run no longer checks them again.
+
 ## 🗂️ v0.1.2 (2026-11-14)
 
 <p align="center">

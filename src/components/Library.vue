@@ -159,7 +159,17 @@ const { open: openExportViewer, close: closeExportViewer } = useModal({
 
 const {
   addToQueue: addToExportQueue,
+  needsAttention: exportNeedsAttention,
 } = useExporter()
+watch(
+  exportNeedsAttention,
+  needed => {
+    if (!needed) return
+    exportNeedsAttention.value = false
+    openExportViewer()
+  },
+  { immediate: true }
+)
 
 const { pendingNavigation, clearNavigation } = useLibraryNavigation()
 
@@ -196,7 +206,7 @@ const handleExportAllLyrics = async formats => {
       return
     }
 
-    addToExportQueue(trackIds, formats)
+    await addToExportQueue(trackIds, formats)
   } catch (error) {
     console.error(error)
     toast.error(`Failed to start export: ${error}`)

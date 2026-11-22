@@ -132,5 +132,8 @@ pub fn cancel_app_update_install(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn restart_for_app_update(app: AppHandle) -> Result<(), String> {
+    // On Windows the installer ends the process before any exit event, so
+    // the queued memories are committed here first.
+    crate::local_db::flush_on_exit(&app);
     super::restart(&app)
 }

@@ -168,24 +168,17 @@ describe('submitted export choices', () => {
 
   it('keeps manual batch formats and writer order when later submissions change them', async () => {
     const exporter = (await import('./export.js')).useExporter()
-    invoke.mockImplementation(async (command, args) =>
-      command === 'get_track'
-        ? { id: args.trackId, title: 'Song', artist_name: 'Artist' }
-        : { errors: 0, exported: 1, skipped: 0 }
-    )
+    invoke.mockResolvedValue(null)
     const choice = { plainText: true, syncedLrc: true, embedIntoTrack: true }
-    exporter.addToQueue([1, 2], choice)
+    await exporter.addToQueue([1, 2], choice)
     choice.plainText = false
     choice.embedIntoTrack = false
-    exporter.addToQueue([3], choice)
-    void exporter.exportNext()
-    await vi.advanceTimersByTimeAsync(4)
+    await exporter.addToQueue([3], choice)
     expect(
-      invoke.mock.calls.filter(([name]) => name === 'export_track_lyrics').map(([, args]) => args)
+      invoke.mock.calls.filter(([name]) => name === 'start_export_run').map(([, args]) => args)
     ).toEqual([
-      { trackId: 1, formats: ['txt', 'lrc', 'embedded'] },
-      { trackId: 2, formats: ['txt', 'lrc', 'embedded'] },
-      { trackId: 3, formats: ['lrc'] },
+      { trackIds: [1, 2], formats: ['txt', 'lrc', 'embedded'] },
+      { trackIds: [3], formats: ['lrc'] },
     ])
   })
 
