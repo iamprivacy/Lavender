@@ -120,8 +120,34 @@ pub fn from_rating(rating: Option<&str>) -> Option<Edition> {
 /// starts with a letter: a token of asterisks alone ("***", a section
 /// separator or an instrumental break marker) is not one, a single trailing
 /// asterisk ("Hello*") is a footnote mark and "*chorus*" an annotation.
+/// Some sources (NetEase) blank the whole word instead ("where the **** is
+/// he"), which `blanked_line` finds.
 pub fn masked(text: &str) -> bool {
-    text.split_whitespace().any(masked_token)
+    text.split_whitespace().any(masked_token) || text.lines().any(blanked_line)
+}
+
+/// Whether a line has a word replaced by asterisks alone: three or more of
+/// them, among at least two real words, and not a line wrapped in asterisks
+/// ("*** Guitar Solo ***"), which is an annotation. Two asterisks are a
+/// rating or emphasis ("rated ** by critics").
+fn blanked_line(line: &str) -> bool {
+    let parts: Vec<&str> = line
+        .split_whitespace()
+        .map(|part| part.trim_matches(|c: char| !c.is_alphanumeric() && c != '*'))
+        .filter(|part| !part.is_empty())
+        .collect();
+    let blank = |part: &str| part.len() >= 3 && part.chars().all(|c| c == '*');
+    let word = |part: &str| part.chars().any(char::is_alphabetic) && !part.contains('*');
+    let telling: Vec<&str> = parts
+        .iter()
+        .copied()
+        .filter(|part| blank(part) || word(part))
+        .collect();
+    let wrapped = telling.first().is_some_and(|part| blank(part))
+        && telling.last().is_some_and(|part| blank(part));
+    !wrapped
+        && telling.iter().any(|part| blank(part))
+        && telling.iter().filter(|part| word(part)).count() >= 2
 }
 
 fn masked_token(token: &str) -> bool {
@@ -247,6 +273,9 @@ mod tests {
             "kiss my a**",
             "[00:12.34] N***a please",
             "F**K!",
+            "(Hey man, where the **** is he?)",
+            "[00:00.00] （Hey man, where the **** is he?）",
+            "first line\nwhat the *** was that\nlast line",
         ] {
             assert!(masked(text), "{text:?}");
         }
@@ -259,6 +288,10 @@ mod tests {
             "*** Chorus ***",
             "[00:30.00] ***",
             "* * *",
+            "*** Guitar Solo ***",
+            "[00:30.00] *** Guitar Solo ***",
+            "**** Chorus",
+            "one line\n****\nanother line",
             "[00:12.34] <00:12.50>Hello",
         ] {
             assert!(!masked(text), "{text:?}");

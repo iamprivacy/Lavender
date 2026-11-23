@@ -536,6 +536,15 @@
       <CheckboxButton id="extra-plain-lyrics" v-model="extraPlainLyrics" name="extra-plain-lyrics">
         Also accept unsynced lyrics from extra sources
       </CheckboxButton>
+      <CheckboxButton
+        v-if="!extraPlainLyrics"
+        id="extra-refused-words"
+        v-model="extraRefusedWords"
+        name="extra-refused-words"
+      >
+        Keep the words of lyrics timed too badly to follow, as unsynced lyrics. When off, such
+        lyrics are skipped, and Upgrade leaves badly timed lyrics already saved as they are.
+      </CheckboxButton>
     </div>
 
     <div class="flex flex-col gap-2 mt-6">
@@ -571,6 +580,33 @@
         >
           Always clean
         </RadioButton>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2 mt-6">
+      <div class="text-sm font-bold">Repairs (Upgrade to the best match, local only)</div>
+      <div class="text-xs text-neutral-500 dark:text-neutral-400">
+        Credit lines at the top of saved lyrics (such as "作词 : X") are always removed, nothing
+        else changed, also in lyrics you edited. Lyrics timed too badly to follow are fixed only
+        with their own words or the database's copy, so your edits stay, unless you allow a
+        different text below.
+      </div>
+      <CheckboxButton
+        id="repair-replaces-text"
+        v-model="repairReplacesText"
+        name="repair-replaces-text"
+      >
+        Let repairs replace damaged lyrics with a different text (can undo your own edits)
+      </CheckboxButton>
+      <div class="pl-6">
+        <CheckboxButton
+          id="repair-keeps-word-timing"
+          v-model="repairKeepsWordTiming"
+          name="repair-keeps-word-timing"
+          :disabled="!repairReplacesText"
+        >
+          When removing credit lines, replace word-synced lyrics only with word-synced ones
+        </CheckboxButton>
       </div>
     </div>
 
@@ -622,6 +658,9 @@ const appleSigningIn = ref(false)
 const extraNetease = ref(false)
 const extraQq = ref(false)
 const extraPlainLyrics = ref(false)
+const extraRefusedWords = ref(true)
+const repairReplacesText = ref(false)
+const repairKeepsWordTiming = ref(true)
 const exportWordTimestamps = ref(false)
 const lyricsEdition = ref('follow-file')
 const checkedCount = ref(0)
@@ -762,6 +801,9 @@ const load = async () => {
   extraNetease.value = config.extraNetease === true
   extraQq.value = config.extraQq === true
   extraPlainLyrics.value = config.extraPlainLyrics === true
+  extraRefusedWords.value = config.extraRefusedWords !== false
+  repairReplacesText.value = config.repairReplacesText === true
+  repairKeepsWordTiming.value = config.repairKeepsWordTiming !== false
   exportWordTimestamps.value = config.exportWordTimestamps === true
   lyricsEdition.value = config.lyricsEdition || 'follow-file'
   info.value = status.open ? status.info : null
@@ -814,6 +856,9 @@ const currentConfig = () => ({
   extraNetease: extraNetease.value,
   extraQq: extraQq.value,
   extraPlainLyrics: extraPlainLyrics.value,
+  extraRefusedWords: extraRefusedWords.value,
+  repairReplacesText: repairReplacesText.value,
+  repairKeepsWordTiming: repairKeepsWordTiming.value,
   exportWordTimestamps: exportWordTimestamps.value,
   lyricsEdition: lyricsEdition.value,
 })

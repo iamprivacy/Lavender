@@ -10,15 +10,27 @@ use serde::{Deserialize, Serialize};
 
 use super::edition::EditionPreference;
 
-pub const SCHEMA_VERSION: i64 = 12;
-/// The version from which a change to how local rows are ranked last made
-/// earlier Upgrade checks stale (`attempts::upgrade_checks`): version 12, when
-/// unevenly timed copies began to give way. A track the Upgrade run kept
-/// under the old ranking may now have a better row, so those checks are
+pub const SCHEMA_VERSION: i64 = 14;
+/// The version from which a change to how local rows are ranked, or to what
+/// the Upgrade run does with stored lyrics, last made earlier Upgrade checks
+/// stale (`attempts::upgrade_checks`): version 12, when unevenly timed
+/// copies began to give way; version 13, when a word blanked out whole
+/// ("****") began to count as masked, stored lyrics damaged by an extra
+/// source's answer began to be repaired, and word timings from an extra
+/// source had to agree with the stored lines; version 14, when credit lines
+/// began to be cut in place and repairs by a different text became a
+/// setting (`upgrade::RepairRules`). A track the Upgrade run kept
+/// under the old rules may now be decided differently, so those checks are
 /// forgotten once and the next Upgrade run looks at every track again.
-/// Remembered misses stay: the ranking does not change what the database
-/// can answer.
-const RANKING_CHANGED: i64 = 12;
+/// Remembered misses stay: none of this changes what the database can
+/// answer.
+const RANKING_CHANGED: i64 = 14;
+/// The version that made keeping the words of refused timing a setting
+/// (`ForkConfig::extra_refused_words`, token `extra::REFUSED_WORDS`).
+/// Misses remembered before it were asked with those words kept, which is
+/// the setting's default, so their rows are stamped with the token instead
+/// of being asked again.
+const REFUSED_WORDS_SETTING: i64 = 14;
 
 fn default_true() -> bool {
     true
@@ -95,6 +107,24 @@ pub struct ForkConfig {
     /// a synced source that only has plain text for a track is then skipped.
     #[serde(default)]
     pub extra_plain_lyrics: bool,
+    /// With plain lyrics off, still keep the words of an extra source's
+    /// answer whose timing cannot be followed (`extra::TimingDoubt::unusable`),
+    /// as plain lyrics. Off: such an answer is dropped, an honest miss, and
+    /// Upgrade no longer turns stored lyrics timed in bursts into their words
+    /// alone. Default on. Older frontends may not send it.
+    #[serde(default = "default_true")]
+    pub extra_refused_words: bool,
+    /// Upgrade may replace damaged lyrics (credit lines at the top, timing
+    /// in bursts; `upgrade::Damage`) with a different text, even lyrics the
+    /// user edited. Off by default: credit lines are cut in place and timing
+    /// in bursts gives way only to the lyrics' own words (`upgrade::RepairRules`).
+    #[serde(default)]
+    pub repair_replaces_text: bool,
+    /// When such a repair may replace lyrics, stored word timings give way
+    /// only to word timings; otherwise the credit lines are cut in place.
+    /// Default on. Older frontends may not send it.
+    #[serde(default = "default_true")]
+    pub repair_keeps_word_timing: bool,
     /// Exported `.lrc` files carry a timestamp per word when the lyrics have
     /// them (enhanced LRC, see `word_sync::export`). Off by default.
     #[serde(default)]
@@ -123,6 +153,9 @@ impl Default for ForkConfig {
             extra_netease: false,
             extra_qq: false,
             extra_plain_lyrics: false,
+            extra_refused_words: true,
+            repair_replaces_text: false,
+            repair_keeps_word_timing: true,
             export_word_timestamps: false,
             lyrics_edition: EditionPreference::FollowFile,
         }
@@ -153,7 +186,10 @@ pub fn ensure_table(conn: &Connection) -> rusqlite::Result<()> {
             extra_apple INTEGER NOT NULL DEFAULT 0,
             apple_user_token TEXT,
             export_word_timestamps INTEGER NOT NULL DEFAULT 0,
-            lyrics_edition TEXT NOT NULL DEFAULT 'follow-file'
+            lyrics_edition TEXT NOT NULL DEFAULT 'follow-file',
+            extra_refused_words INTEGER NOT NULL DEFAULT 1,
+            repair_replaces_text INTEGER NOT NULL DEFAULT 0,
+            repair_keeps_word_timing INTEGER NOT NULL DEFAULT 1
         );
         INSERT OR IGNORE INTO fork_config (id, schema_version) VALUES (1, {SCHEMA_VERSION});"
     ))?;
@@ -195,6 +231,12 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         add_column(conn, "fork_config", "apple_user_token", "TEXT")?;
         add_column(conn, "fork_config", "export_word_timestamps", "INTEGER NOT NULL DEFAULT 0")?;
         add_column(conn, "fork_config", "lyrics_edition", "TEXT NOT NULL DEFAULT 'follow-file'")?;
+        add_column(conn, "fork_config", "extra_refused_words", "INTEGER NOT NULL DEFAULT 1")?;
+        add_column(conn, "fork_config", "repair_replaces_text", "INTEGER NOT NULL DEFAULT 0")?;
+        add_column(conn, "fork_config", "repair_keeps_word_timing", "INTEGER NOT NULL DEFAULT 1")?;
+        if version < REFUSED_WORDS_SETTING {
+            stamp_refused_words(conn)?;
+        }
         if version < RANKING_CHANGED {
             conn.execute("DELETE FROM upgrade_checks", [])?;
         }
@@ -211,6 +253,22 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             Err(error)
         }
     }
+}
+
+/// Adds the refused-words token to every remembered miss that asked an
+/// extra source (`REFUSED_WORDS_SETTING`).
+fn stamp_refused_words(conn: &Connection) -> rusqlite::Result<()> {
+    let sources = super::extra::ExtraSource::LADDER
+        .iter()
+        .map(|source| format!("',' || extra_sources || ',' LIKE '%,{},%'", source.id()))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    let token = super::extra::REFUSED_WORDS;
+    conn.execute_batch(&format!(
+        "UPDATE lookup_attempts SET extra_sources = extra_sources || ',{token}'
+         WHERE ({sources})
+           AND ',' || extra_sources || ',' NOT LIKE '%,{token},%'"
+    ))
 }
 
 fn add_column(conn: &Connection, table: &str, column: &str, definition: &str) -> rusqlite::Result<()> {
@@ -321,7 +379,7 @@ pub fn save(conn: &Connection, config: &ForkConfig) -> rusqlite::Result<ForkConf
 pub fn get(conn: &Connection) -> rusqlite::Result<ForkConfig> {
     let row = conn
         .query_row(
-            "SELECT lyrics_source, local_db_path, fallback_online, tolerant_matching, skip_checked, extra_netease, extra_qq, extra_plain_lyrics, instrumental_titles, extra_amll, extra_apple, apple_user_token, export_word_timestamps, lyrics_edition FROM fork_config WHERE id = 1",
+            "SELECT lyrics_source, local_db_path, fallback_online, tolerant_matching, skip_checked, extra_netease, extra_qq, extra_plain_lyrics, instrumental_titles, extra_amll, extra_apple, apple_user_token, export_word_timestamps, lyrics_edition, extra_refused_words, repair_replaces_text, repair_keeps_word_timing FROM fork_config WHERE id = 1",
             [],
             |row| {
                 Ok(ForkConfig {
@@ -339,6 +397,9 @@ pub fn get(conn: &Connection) -> rusqlite::Result<ForkConfig> {
                     apple_user_token: row.get(11)?,
                     export_word_timestamps: row.get(12)?,
                     lyrics_edition: EditionPreference::parse(&row.get::<_, String>(13)?),
+                    extra_refused_words: row.get(14)?,
+                    repair_replaces_text: row.get(15)?,
+                    repair_keeps_word_timing: row.get(16)?,
                 })
             },
         )
@@ -358,7 +419,7 @@ pub fn set(conn: &Connection, config: &ForkConfig) -> rusqlite::Result<()> {
         .map(str::trim)
         .filter(|token| !token.is_empty());
     conn.execute(
-        "UPDATE fork_config SET lyrics_source = ?1, local_db_path = ?2, fallback_online = ?3, tolerant_matching = ?4, skip_checked = ?5, extra_netease = ?6, extra_qq = ?7, extra_plain_lyrics = ?8, instrumental_titles = ?9, extra_amll = ?10, extra_apple = ?11, apple_user_token = ?12, export_word_timestamps = ?13, lyrics_edition = ?14 WHERE id = 1",
+        "UPDATE fork_config SET lyrics_source = ?1, local_db_path = ?2, fallback_online = ?3, tolerant_matching = ?4, skip_checked = ?5, extra_netease = ?6, extra_qq = ?7, extra_plain_lyrics = ?8, instrumental_titles = ?9, extra_amll = ?10, extra_apple = ?11, apple_user_token = ?12, export_word_timestamps = ?13, lyrics_edition = ?14, extra_refused_words = ?15, repair_replaces_text = ?16, repair_keeps_word_timing = ?17 WHERE id = 1",
         rusqlite::params![
             config.lyrics_source.as_str(),
             path,
@@ -373,7 +434,10 @@ pub fn set(conn: &Connection, config: &ForkConfig) -> rusqlite::Result<()> {
             config.extra_apple,
             apple_user_token,
             config.export_word_timestamps,
-            config.lyrics_edition.as_str()
+            config.lyrics_edition.as_str(),
+            config.extra_refused_words,
+            config.repair_replaces_text,
+            config.repair_keeps_word_timing
         ],
     )?;
     Ok(())
@@ -410,6 +474,9 @@ mod tests {
             extra_netease: true,
             extra_qq: true,
             extra_plain_lyrics: true,
+            extra_refused_words: false,
+            repair_replaces_text: true,
+            repair_keeps_word_timing: false,
             export_word_timestamps: true,
             lyrics_edition: EditionPreference::Clean,
         };
@@ -501,6 +568,33 @@ mod tests {
     }
 
     #[test]
+    fn misses_remembered_before_the_refused_words_setting_are_stamped_with_its_default() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_table(&conn).unwrap();
+        conn.execute_batch(
+            "INSERT INTO lookup_attempts (track_id, fingerprint, dump_key, online_checked, tolerant, checked_at, extra_sources)
+             VALUES (1, 'f', 'k', 0, 1, datetime('now'), 'netease,qq'),
+                    (2, 'f', 'k', 0, 1, datetime('now'), 'instrumental-titles'),
+                    (3, 'f', 'k', 0, 1, datetime('now'), 'amll,plain,instrumental-titles');
+             UPDATE fork_config SET schema_version = 13;",
+        )
+        .unwrap();
+        ensure_table(&conn).unwrap();
+        let asked = |id: i64| -> String {
+            conn.query_row("SELECT extra_sources FROM lookup_attempts WHERE track_id = ?1", [id], |row| row.get(0))
+                .unwrap()
+        };
+        assert_eq!(asked(1), "netease,qq,refused-words");
+        assert_eq!(asked(2), "instrumental-titles", "no extra source was asked");
+        assert_eq!(asked(3), "amll,plain,instrumental-titles,refused-words");
+        assert!(get(&conn).unwrap().extra_refused_words);
+        // Once only.
+        conn.execute("UPDATE fork_config SET schema_version = 14", []).unwrap();
+        ensure_table(&conn).unwrap();
+        assert_eq!(asked(1), "netease,qq,refused-words");
+    }
+
+    #[test]
     fn serializes_camel_case_for_the_frontend() {
         let json = serde_json::to_value(ForkConfig::default()).unwrap();
         assert_eq!(json["lyricsSource"], "online");
@@ -515,6 +609,9 @@ mod tests {
         assert_eq!(json["lyricsEdition"], "follow-file");
         assert_eq!(json["extraNetease"], false);
         assert_eq!(json["extraPlainLyrics"], false);
+        assert_eq!(json["extraRefusedWords"], true);
+        assert_eq!(json["repairReplacesText"], false);
+        assert_eq!(json["repairKeepsWordTiming"], true);
         assert!(json["localDbPath"].is_null());
         // A frontend that predates the setting leaves it on.
         let parsed: ForkConfig =
@@ -525,6 +622,8 @@ mod tests {
         assert!(parsed.instrumental_titles);
         assert!(!parsed.extra_netease, "extra sources stay off unless sent");
         assert!(!parsed.extra_plain_lyrics);
+        assert!(parsed.extra_refused_words, "the words of refused timing stay kept unless sent");
+        assert!(!parsed.repair_replaces_text && parsed.repair_keeps_word_timing);
         let parsed: ForkConfig = serde_json::from_str(
             r#"{"lyricsSource":"local","localDbPath":"x","fallbackOnline":false,"tolerantMatching":false}"#,
         )

@@ -165,6 +165,7 @@ pub fn answer(
         plain,
         word_synced: false,
         masked: false,
+        timing: None,
     };
     Some((lrc::to_response(lyrics, candidate), note))
 }

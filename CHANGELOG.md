@@ -25,6 +25,32 @@ A bullet that closes a reported issue names it in full and links to it:
 `(#11)`. These notes are read outside the repo, where a bare number is neither
 a link nor obviously an issue. A test enforces it.
 
+## 🗂️ v0.1.4 (2026-11-22)
+
+<p align="center">
+  <strong>💜 If you enjoy Lavender, a star on this repo goes a long way, and if you'd like to help me afford to keep developing it, consider donating.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/iamprivacy"><img src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
+💡 To fix lyrics saved by earlier versions, turn on **Let repairs replace damaged lyrics with a different text** under Settings > Repairs, then run **Download all lyrics** over your whole library with **Upgrade to the best match** on (local database only). Be aware that with that setting on, lyrics you edited yourself can be replaced by a version found elsewhere if they have credit lines or bad timing, so leave it off to keep your edits.
+
+### ✨ Added
+
+- ⏱️ A setting under Extra sources keeps the words of badly timed lyrics as plain lyrics (on by default) or skips them.
+- 🛠️ Repairs settings let Upgrade replace damaged lyrics with a different text (off by default, as it can undo your edits) and keep word-synced lyrics word-synced when it does (on).
+
+### 🐛 Fixed
+
+- 🎤 Extra-source lyrics no longer start with credit lines such as 作词, which could leave a player stuck on the first line.
+- 🚫 Words blanked out as **** count as censored, so uncensored lyrics are preferred.
+- ⏱️ Badly timed extra-source lyrics are saved as plain text, and only when no source has better.
+- 🔁 With the local database, when LRCLIB only has plain lyrics, the extra sources you turned on are asked for synced ones in the same download.
+- 🧭 A local match whose timing stops too early or runs past the song gives way to a working copy filed under another album.
+- ⬆️ Upgrade no longer swaps in censored, badly timed or different word-synced lyrics, and repairs earlier ones: credit lines are cut with word timing kept, and bad timing is fixed from a copy with the same words.
+
 ## 🗂️ v0.1.3 (2026-11-22)
 
 <p align="center">
@@ -37,8 +63,8 @@ a link nor obviously an issue. A test enforces it.
 
 ### 🐛 Fixed
 
-- 📤 Export all lyrics keeps going if Lavender's window reloads or shows an error page, and it can be paused, resumed after a restart, and asked to retry the tracks that failed. Starting a new export leaves .lrc and .txt files that already hold the same lyrics untouched, so going over a large library again is much faster, and the export now writes word timestamps into .lrc files when that setting is on, as single-track exports already did.
-- 💾 Tracks a lookup or Upgrade run has checked are remembered even when Lavender is quit or restarts into an update right after the run, so the next run no longer checks them again.
+- 📤 Export all lyrics survives window reloads, can pause, resume after a restart and retry failed tracks, skips files that already match, and writes word timestamps into .lrc files when that setting is on.
+- 💾 Tracks checked by a lookup or Upgrade run are remembered even if Lavender quits right after, so the next run skips them.
 
 ## 🗂️ v0.1.2 (2026-11-14)
 

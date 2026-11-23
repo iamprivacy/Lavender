@@ -366,7 +366,7 @@ pub fn find_ranked(
         take(hits, true);
     }
     keep_same_performance(&mut rows);
-    settle_rows(&mut rows);
+    settle_rows(&mut rows, matcher.duration);
     rows.sort_by(|a, b| a.0.cmp(&b.0));
     let mut ranked: Vec<(LocalTrack, MatchNote)> = Vec::with_capacity(rows.len());
     let mut previous: Option<RankKey> = None;
@@ -395,12 +395,12 @@ fn keep_same_performance<T>(rows: &mut Vec<(RankKey, T, MatchNote)>) {
 }
 
 /// `settle_content` for accepted rows, with the mark copied to the notes.
-fn settle_rows(rows: &mut [(RankKey, LocalTrack, MatchNote)]) {
+fn settle_rows(rows: &mut [(RankKey, LocalTrack, MatchNote)], duration: f64) {
     let timings: Vec<Option<Timing>> = rows
         .iter()
         .map(|(_, track, _)| synced_text(track).map(Timing::parse))
         .collect();
-    settle_content(rows.iter_mut().map(|(key, _, _)| key).collect(), &timings);
+    settle_content(rows.iter_mut().map(|(key, _, _)| key).collect(), &timings, duration);
     for (key, _, note) in rows.iter_mut() {
         note.uneven = key.evenness == Evenness::Uneven;
     }
@@ -416,7 +416,12 @@ fn settle_rows(rows: &mut [(RankKey, LocalTrack, MatchNote)]) {
 /// rows that match exactly as well are marked clean and come first, so the
 /// pick goes to one of them and never to a plain row of the file's album
 /// that the uneven row used to keep below it.
-fn settle_content(mut keys: Vec<&mut RankKey>, timings: &[Option<Timing>]) {
+///
+/// A row whose timed lines are broken for the file (`Timing::broken`: all on
+/// one stamp, past the file's end, or stopping long before it) is treated
+/// as uneven next to a synced row that is not, under the same condition:
+/// it gives way to a copy that can be followed, and to nothing else.
+fn settle_content(mut keys: Vec<&mut RankKey>, timings: &[Option<Timing>], duration: f64) {
     for (key, agreeing) in keys.iter_mut().zip(content::agreements(timings)) {
         key.agreeing = Reverse(agreeing);
     }
@@ -425,7 +430,16 @@ fn settle_content(mut keys: Vec<&mut RankKey>, timings: &[Option<Timing>]) {
         .zip(timings)
         .map(|(key, timing)| timing.as_ref().filter(|_| !key.other_performance))
         .collect();
-    let uneven = content::uneven(&own);
+    let mut uneven = content::uneven(&own);
+    let broken: Vec<bool> = own
+        .iter()
+        .map(|timing| timing.is_some_and(|timing| timing.broken(duration)))
+        .collect();
+    if own.iter().zip(&broken).any(|(timing, broken)| timing.is_some() && !*broken) {
+        for (uneven, broken) in uneven.iter_mut().zip(&broken) {
+            *uneven |= *broken;
+        }
+    }
     let is_even: Vec<bool> = own
         .iter()
         .zip(&uneven)
@@ -537,7 +551,7 @@ pub fn rank_results(request: &TrackRequest, rows: &[ResultRow]) -> Vec<i64> {
         ranked.retain(|(key, _, _)| !key.other_performance);
     }
     let timings: Vec<Option<Timing>> = ranked.iter_mut().map(|(_, _, timing)| timing.take()).collect();
-    settle_content(ranked.iter_mut().map(|(key, _, _)| key).collect(), &timings);
+    settle_content(ranked.iter_mut().map(|(key, _, _)| key).collect(), &timings, matcher.duration);
     ranked.sort_by(|a, b| a.0.cmp(&b.0));
     ranked.into_iter().map(|(_, id, _)| id).collect()
 }
@@ -762,7 +776,7 @@ impl Matcher {
                     .map(|(key, note)| (key, candidate, note))
             })
             .collect();
-        settle_rows(&mut rows);
+        settle_rows(&mut rows, self.duration);
         rows.into_iter()
             .min_by(|a, b| a.0.cmp(&b.0))
             .map(|(_, track, note)| (track, note))

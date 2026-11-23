@@ -77,6 +77,14 @@ const MIN_LINE_S: f64 = 0.05;
 /// slow verse is sung that way), so only the excess over the song's other
 /// copies says a stamp was tapped late or early.
 const UNEVEN_EXCESS: u32 = 4;
+/// Nobody sings this many letters and digits a second: the fastest rap
+/// verses on LRCLIB peak near 35 (Godzilla). A line of `SQUEEZE_MIN_CHARS` or more at a higher
+/// pace was not timed to the music.
+const RUSH_PACE: f64 = 40.0;
+/// A text is rushed with at least this many such lines, and this share of
+/// its lines.
+const RUSH_MIN_LINES: usize = 3;
+const RUSH_SHARE: f64 = 0.15;
 
 /// Weights of the flaws, by how badly each spoils playback.
 const NO_TIMING: u8 = 4;
@@ -128,7 +136,7 @@ impl Timing {
         if distinct <= 1 && count > 1 {
             flaws += NO_TIMING;
         }
-        let last = self.lines.last().map(|(at, _)| *at).unwrap_or(0) as f64 / 1000.0;
+        let last = self.last_sung_s();
         if last > duration + OVERRUN_S {
             flaws += OVERRUN;
         }
@@ -156,28 +164,7 @@ impl Timing {
     /// stamp. Lines stacked on one stamp (a translation under each line)
     /// count once, by the first with words.
     pub fn squeezed(&self) -> u32 {
-        let mut stamps: Vec<(i64, &str)> = Vec::new();
-        for (at, text) in &self.lines {
-            match stamps.last_mut() {
-                Some((last_at, last_text)) if last_at == at => {
-                    if last_text.is_empty() {
-                        *last_text = text;
-                    }
-                }
-                _ => stamps.push((*at, text)),
-            }
-        }
-        // Letters and digits per second, for every line with words that has
-        // a next stamp to end it.
-        let paced: Vec<(usize, f64)> = stamps
-            .windows(2)
-            .filter(|pair| !pair[0].1.is_empty())
-            .map(|pair| {
-                let length = pair[0].1.chars().count();
-                let seconds = ((pair[1].0 - pair[0].0) as f64 / 1000.0).max(MIN_LINE_S);
-                (length, length as f64 / seconds)
-            })
-            .collect();
+        let paced = self.paced();
         (0..paced.len())
             .filter(|&index| {
                 let (length, pace) = paced[index];
@@ -194,6 +181,85 @@ impl Timing {
             .count() as u32
     }
 
+    /// Whether the timing cannot be followed at all: at least
+    /// `RUSH_MIN_LINES` full lines, and `RUSH_SHARE` of the lines, are given
+    /// less time than anyone could sing them in (`RUSH_PACE`). Unlike
+    /// `squeezed` this needs no other copy and no neighbours: it is a text
+    /// stamped in bursts, a verse's lines a second apart and then nothing
+    /// for half a minute. A fast passage in a song timed with care stays
+    /// far below the share.
+    pub fn rushed(&self) -> bool {
+        let paced = self.paced();
+        let rushed = paced
+            .iter()
+            .filter(|(length, pace)| *length >= SQUEEZE_MIN_CHARS && *pace > RUSH_PACE)
+            .count();
+        rushed >= RUSH_MIN_LINES && rushed as f64 >= RUSH_SHARE * paced.len() as f64
+    }
+
+    /// Whether the timed lines cannot serve a file of `duration` seconds
+    /// whatever else is right about the copy: every line on one stamp,
+    /// stamps past the file's end, or lyrics that stop long before it. The
+    /// serious ones of `flaws`; the ranking weighs them before the album.
+    pub fn broken(&self, duration: f64) -> bool {
+        let mut stamps: Vec<i64> = self.lines.iter().map(|(at, _)| *at).collect();
+        stamps.dedup();
+        (self.lines.len() > 1 && stamps.len() <= 1) || self.overruns(duration) || self.stops_early(duration)
+    }
+
+    /// Whether the last sung line lies past the end of a file of `duration`
+    /// seconds: the timing is for another recording.
+    pub fn overruns(&self, duration: f64) -> bool {
+        !self.lines.is_empty() && self.last_sung_s() > duration + OVERRUN_S
+    }
+
+    /// Whether the lyrics stop long before a file of `duration` seconds does.
+    pub fn stops_early(&self, duration: f64) -> bool {
+        !self.lines.is_empty() && duration > COVERAGE_MIN_S && self.last_sung_s() < duration * COVERAGE
+    }
+
+    /// The stamp of the last line with words, in seconds: an empty line
+    /// after it only marks where the song ends, which some copies write and
+    /// others leave out, so it says nothing about how far the lyrics go.
+    /// The last stamp when no line has words.
+    fn last_sung_s(&self) -> f64 {
+        self.lines
+            .iter()
+            .rev()
+            .find(|(_, text)| !text.is_empty())
+            .or(self.lines.last())
+            .map(|(at, _)| *at)
+            .unwrap_or(0) as f64
+            / 1000.0
+    }
+
+    /// Letters and digits, and letters and digits per second, for every line
+    /// with words that has a next stamp to end it. Lines stacked on one
+    /// stamp (a translation under each line) count once, by the first with
+    /// words.
+    fn paced(&self) -> Vec<(usize, f64)> {
+        let mut stamps: Vec<(i64, &str)> = Vec::new();
+        for (at, text) in &self.lines {
+            match stamps.last_mut() {
+                Some((last_at, last_text)) if last_at == at => {
+                    if last_text.is_empty() {
+                        *last_text = text;
+                    }
+                }
+                _ => stamps.push((*at, text)),
+            }
+        }
+        stamps
+            .windows(2)
+            .filter(|pair| !pair[0].1.is_empty())
+            .map(|pair| {
+                let length = pair[0].1.chars().count();
+                let seconds = ((pair[1].0 - pair[0].0) as f64 / 1000.0).max(MIN_LINE_S);
+                (length, length as f64 / seconds)
+            })
+            .collect()
+    }
+
     /// Whether this copy has enough squeezed lines that it could be timed
     /// unevenly next to some other copy (`uneven`). Lets a caller skip
     /// looking for the other copies when it cannot.
@@ -206,6 +272,17 @@ impl Timing {
     /// throw off the lines after it: the median distance in milliseconds,
     /// when enough lines pair up to compare the two.
     fn distance(&self, other: &Timing) -> Option<i64> {
+        self.distance_checked(other)
+    }
+
+    /// Whether the two copies are the same lyrics timed alike: enough lines
+    /// with the same text, starting within `AGREEMENT_MS` of each other at
+    /// the median. `false` when too few lines pair up to tell.
+    pub fn agrees_with(&self, other: &Timing) -> bool {
+        self.distance_checked(other).is_some_and(|distance| distance <= AGREEMENT_MS)
+    }
+
+    fn distance_checked(&self, other: &Timing) -> Option<i64> {
         let mine: Vec<&(i64, String)> = self.lines.iter().filter(|(_, text)| !text.is_empty()).collect();
         let theirs: Vec<&(i64, String)> = other.lines.iter().filter(|(_, text)| !text.is_empty()).collect();
         let (rows, columns) = (mine.len(), theirs.len());
@@ -334,6 +411,45 @@ fn lower_median<T: PartialOrd + Copy>(mut values: Vec<T>) -> T {
     values[(values.len() - 1) / 2]
 }
 
+/// A synced text stamped in bursts, for tests: the stamps and the line
+/// lengths of a real upload that cannot be followed (a verse's lines a
+/// second apart, then nothing for half a minute), with made-up words.
+#[cfg(test)]
+pub fn burst_sample() -> String {
+    const SHAPE: &[(i64, usize)] = &[
+        (19_800, 22),
+        (20_550, 62),
+        (25_230, 38),
+        (27_180, 29),
+        (28_770, 34),
+        (29_790, 59),
+        (31_650, 39),
+        (32_640, 25),
+        (62_640, 42),
+        (66_570, 80),
+        (73_590, 82),
+        (99_330, 80),
+        (101_880, 59),
+        (103_350, 68),
+        (128_160, 17),
+        (128_580, 50),
+    ];
+    SHAPE
+        .iter()
+        .enumerate()
+        .map(|(index, (at, letters))| {
+            // Words of four letters, the line number first so no two lines
+            // read alike.
+            let mut text = format!("n{index:02}x");
+            while text.chars().filter(|c| c.is_alphanumeric()).count() < *letters {
+                text.push_str(" word");
+            }
+            format!("[{:02}:{:02}.{:02}] {text}", at / 60_000, at % 60_000 / 1000, at % 1000 / 10)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::test_support::records;
@@ -457,6 +573,59 @@ mod tests {
             .map(|i| 5_000 + i as i64 * 4_000 + if late.contains(&i) { 3_200 } else { 0 })
             .collect();
         Timing::parse(&long_lines(&stamps))
+    }
+
+    #[test]
+    fn a_text_stamped_in_bursts_is_rushed() {
+        assert!(Timing::parse(&burst_sample()).rushed());
+        // Evenly timed lines are not, nor a few fast lines in a long song.
+        assert!(!Timing::parse(&lines(40, 5_000, 5_000)).rushed());
+        let line = |at: i64, text: &str| format!("[{:02}:{:02}.{:02}] {text}", at / 60_000, at % 60_000 / 1000, at % 1000 / 10);
+        let full = "a full line of words to sing here";
+        let mut fast: Vec<String> = (0..40).map(|i| line(i * 4_000, full)).collect();
+        // Three lines half a second apart among forty.
+        fast.extend((0..3).map(|i| line(160_000 + i * 500, full)));
+        fast.push(line(161_500, full));
+        assert!(!Timing::parse(&fast.join("\n")).rushed(), "under the share");
+        // A translation stacked under each line is one line, not a rush.
+        let stacked: Vec<String> = (0..20)
+            .flat_map(|i| [line(i * 4_000, full), line(i * 4_000, "the same line in another language")])
+            .collect();
+        assert!(!Timing::parse(&stacked.join("\n")).rushed());
+        assert!(!Timing::parse("").rushed());
+    }
+
+    #[test]
+    fn broken_timing_is_the_serious_flaws_only() {
+        assert!(!Timing::parse(&lines(40, 5_000, 5_000)).broken(210.0));
+        assert!(Timing::parse(&lines(40, 5_000, 5_000)).broken(150.0), "overrun");
+        assert!(Timing::parse(&lines(40, 1_000, 1_000)).broken(210.0), "stops early");
+        assert!(Timing::parse("[00:00.00] a\n[00:00.00] b\n[00:00.00] c").broken(30.0), "one stamp");
+        assert!(!Timing::parse(&lines(3, 1_000, 70_000)).broken(210.0), "sparse is not broken");
+        assert!(!Timing::parse("").broken(210.0));
+    }
+
+    #[test]
+    fn an_empty_end_marker_does_not_count_as_lyrics() {
+        // Vocals end at 2:00 of a 4:00 song; one copy marks the end.
+        let sung = lines(24, 5_000, 5_000);
+        let marked = format!("{sung}\n[03:58.00]");
+        let (bare, marked) = (Timing::parse(&sung), Timing::parse(&marked));
+        assert!(bare.stops_early(240.0) && marked.stops_early(240.0));
+        assert_eq!(bare.broken(240.0), marked.broken(240.0));
+        assert_eq!(bare.flaws(240.0), marked.flaws(240.0));
+        // A marker past the end of a file the words fit is no overrun.
+        let late = Timing::parse(&format!("{}\n[04:30.00]", lines(40, 5_000, 5_000)));
+        assert!(!late.overruns(210.0));
+    }
+
+    #[test]
+    fn overrun_and_stopping_early_are_told_apart() {
+        let timing = Timing::parse(&lines(40, 5_000, 5_000));
+        assert!(timing.overruns(150.0) && !timing.overruns(210.0));
+        assert!(Timing::parse(&lines(40, 1_000, 1_000)).stops_early(210.0));
+        assert!(!timing.stops_early(210.0));
+        assert!(!Timing::parse("").stops_early(210.0) && !Timing::parse("").overruns(210.0));
     }
 
     #[test]

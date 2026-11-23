@@ -671,9 +671,50 @@ src-tauri/src/local_db/
   same track (`queries::lyrics_history`, `edition::uncensored_upload`), timed
   lines kept. Upgrade does not protect stored lyrics with masked words when
   uncensored ones are wanted: the lookup runs again and `replaces_masked`
-  decides. Online answers are untouched.
+  decides. Online answers are untouched. A word blanked out whole
+  ("where the **** is he", as NetEase writes it) is masked too
+  (`edition::blanked_line`: three or more asterisks among two or more real
+  words, not a line wrapped in asterisks).
+- **A broken exact hit (`source::sounder_copy`):** like `evener_copy`, for an
+  exact hit whose timed lines are `Timing::broken` for the file (every line
+  on one stamp, stamps past the end, or lyrics that stop long before it):
+  the best row of `tolerant::find_ranked` with synced lyrics that are not
+  broken is taken in its place. `tolerant::settle_content` marks a broken
+  row `Evenness::Uneven` next to a synced row of the same standing that is
+  not broken, so the ranking, and with it Upgrade's `synced_verdict`, agrees
+  with the pick and does not swap the broken copy back in. Beyond that the
+  ranking still puts the album
+  before synced lyrics (`RankKey`): the album tells an instrumental or
+  alternate version apart, and a plain or instrumental row of the file's own
+  album must not lose to a vocal copy filed elsewhere.
+- **Plain lyrics from LRCLIB (`extra::after_lrclib_with`):** with the local
+  database (never in Online mode, which passes the server's answer on as
+  upstream does), an answer that is plain lyrics alone (`only_plain`) is
+  passed to the ladder as a miss would be, plain answers refused, and replaced only by `synced_beats_plain`: timed
+  lines, no `TimingDoubt`, no masked words when uncensored lyrics are wanted.
+  Otherwise, also when a source is in trouble, the plain lyrics stay. In
+  Local mode the request carries the `lyrics_edition` setting.
+- **Timing of an extra source's answer (`extra::timing_doubt`):** the copies
+  of a song in the database are ranked against each other (`content.rs`); an
+  extra source gives one text, so it is judged by itself. `TimingDoubt` is
+  `Rushed` (`Timing::rushed`: at least three full lines, and 15 % of the
+  lines, stamped faster than 40 letters a second, a text timed in bursts),
+  `Overrun` (the last sung line past the file's end) or `StopsEarly` (the
+  last sung line before 60 % of it; an empty end marker after it does not
+  count, in the ranking either). `first_answer` holds such an answer back
+  for the next candidates, as it does a masked one, and `run_ladder` for
+  the sources below, both in the order of `extra::doubt`: unusable timing,
+  then masked words when uncensored lyrics are wanted, then an early stop; when nothing sound answers
+  the held one is the hit, through `without_timing` when the doubt is
+  `unusable` (rushed or overrun): plain lyrics when
+  `extra::keeps_refused_words` (plain lyrics accepted for the lookup, or
+  `extra_refused_words`, on by default), "; timing refused, saved as plain
+  lyrics" in the log; otherwise the answer is dropped, an honest miss, and
+  `tokens` carries `refused-words` only while such words are kept. `lookup` judges
+  the answers of AMLL and Apple too, against the file's own length.
 - **Extra sources (settings `extra_amll`, `extra_apple`, `extra_netease`,
-  `extra_qq`, `extra_plain_lyrics`, all off by default):** `extra::after_lrclib`
+  `extra_qq`, `extra_plain_lyrics`, all off by default, and
+  `extra_refused_words`, on):** `extra::after_lrclib`
   runs in `download_lyrics` right after the
   LRCLIB lookup and only when that lookup classified as not found (local,
   then online, as the settings allow). It walks the ladder in
@@ -806,7 +847,42 @@ src-tauri/src/local_db/
   romanisation, background vocals) left out, line-timed files as line-synced
   lines. The ladder's `lookup` takes the fork settings so a source can read
   more than its switch. `ExtraNote.word_synced` prints "; word-synced" in the
-  download log. The Upgrade run keeps `Stored::WordSynced`; for line-synced
+  download log. `yrc::filtered` keeps the lines the LRC filter kept by stamp
+  and text together: NetEase's credits often share 0 ms with the first sung
+  line, and the stamp alone brought them back. The Upgrade run first
+  looks for damage an extra source's answer left in stored lyrics
+  (`upgrade::stored_damage`: a credit line at the top, or `Timing::rushed`)
+  and mends it as `upgrade::RepairRules` allow (settings
+  `repair_replaces_text`, off by default, and `repair_keeps_word_timing`,
+  on). Credit lines are cut in place by `upgrade::without_credits`, which
+  edits the lyricsfile as a YAML value (the leading credit lines of `lines`
+  and `plain`, every other field kept) and needs no lookup. For timing in
+  bursts the ordinary lookup runs again; by default its answer replaces the
+  lyrics only when it is their own text (`upgrade::same_words`, or the
+  stored lines are a row of the database), else the keep says the only fix
+  is a different text. With `repair_replaces_text` on, any answer
+  `upgrade::repairs` finds free of the damage replaces them, credits
+  included, the cut being the fallback, and stored word timings give way
+  only to word timings unless `repair_keeps_word_timing` is off; neither
+  setting touches `lookup_attempts`, and `upgrade::upgrade_tokens` adds a
+  token for each to the Upgrade memory only. `upgrade::same_lines` and
+  `same_plain` leave a leading credit block out on both sides, so a
+  database copy whose credits were cut still matches its row. Masked and
+  damaged lyrics share that one lookup (`upgrade::fresh_replaces`): an
+  uncensored answer first, else an answer that mends the damage even if it
+  masks the words again, but only for lyrics masked already: unmasked
+  lyrics never give up their words to lose damage when uncensored lyrics
+  are wanted. A lookup that fails leaves the keep unsettled
+  (`Damage::kept`), and an outage is handed back to the run, so the repair
+  is tried again. Plain lyrics give
+  way to an extra source's synced answer under `extra::synced_beats_plain`,
+  as in a download. A word-synced extra answer replaces the database's
+  line-synced lyrics only when `upgrade::word_sync_improves`: unmasked when
+  uncensored lyrics are wanted, no `TimingDoubt`, and lines that agree with
+  the stored ones (`Timing::agrees_with`, the same text within 1.5 s).
+  `config::RANKING_CHANGED` (schema 14) forgets the remembered Upgrade keeps
+  once, so every track is looked at again under these rules.
+  The Upgrade run keeps `Stored::WordSynced`; for line-synced
   lyrics it first decides whose they are (`synced_verdict`: timed lines and
   plain text must match a row, `Foreign` otherwise and the track is kept),
   and only lyrics that match a row are replaced, by a word-synced local row,

@@ -100,15 +100,18 @@ pub fn filtered(lines: Vec<Line>, candidate: Option<&Candidate>) -> Option<Vec<L
         Lyrics::Synced(kept) => kept,
         Lyrics::Plain(_) => return None,
     };
-    let stamps: HashSet<i64> = parse_lrc(&kept)
+    // A kept line is known by its stamp and its text together: the credits
+    // often share a stamp (0 ms) with the first sung line, and the stamp
+    // alone would bring them back.
+    let kept: HashSet<(i64, String)> = parse_lrc(&kept)
         .timed_lines
-        .iter()
-        .map(|line| line.timestamp_ms)
+        .into_iter()
+        .map(|line| (line.timestamp_ms, line.text.trim().to_owned()))
         .collect();
     let lines = lyricsfile::tidy(
         lines
             .into_iter()
-            .filter(|line| stamps.contains(&centis(line.start_ms)))
+            .filter(|line| kept.contains(&(centis(line.start_ms), line.text.trim().to_owned())))
             .collect(),
     );
     (lines.len() >= lyricsfile::MIN_LINES).then_some(lines)
@@ -167,6 +170,16 @@ mod tests {
         assert_eq!(lines[0].text, "Hello, it's me");
         assert_eq!(lines[2].text, "To go over everything");
         assert!(lyricsfile::has_words(&lines));
+    }
+
+    #[test]
+    fn credits_on_the_first_sung_lines_stamp_are_dropped() {
+        // As NetEase writes some songs: the credits and the first sung line
+        // all start at 0 ms.
+        let text = "[0,0](0,0,0) 作词 : Someone\n[0,0](0,0,0) 作曲 : Someone\n[0,5670](0,900,0)(First (900,800,0)line (1700,900,0)here)\n[5670,3400](5670,900,0)Second (6570,900,0)line\n[9090,2800](9090,900,0)Third (9990,900,0)line\n";
+        let lines = lines(text, Some(&candidate())).unwrap();
+        let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
+        assert_eq!(texts, ["(First line here)", "Second line", "Third line"]);
     }
 
     #[test]

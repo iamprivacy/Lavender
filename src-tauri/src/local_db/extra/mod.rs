@@ -41,13 +41,14 @@ use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
 use super::attempts::{classify, Outcome};
-use super::config::ForkConfig;
+use super::config::{ForkConfig, LyricsSource};
+use super::content::Timing;
 use super::edition::{self, Edition, EditionPreference};
 use super::source::Host;
 use super::tolerant::{MatchNote, MatchRule, Matcher, TrackRequest};
 use crate::lrclib::get::RawResponse;
 use crate::persistent_entities::PersistentTrack;
-use crate::utils::{prepare_input, prepare_search_input};
+use crate::utils::{prepare_input, prepare_search_input, strip_timestamp};
 
 /// The ladder, best result first. The declaration order is the order asked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -111,11 +112,16 @@ pub fn enabled(config: &ForkConfig) -> Vec<ExtraSource> {
 /// the default carries no token, so nothing remembered before the setting
 /// existed is thrown away, and a switch back to the default keeps what the
 /// other edition remembered, which the settings' Forget button clears).
+/// With a source on, `refused-words` when the words of refused timing are
+/// kept (`keeps_refused_words`), which also asks more than dropping them.
 /// Empty when none of these is on.
 pub fn tokens(config: &ForkConfig) -> String {
     let mut tokens: Vec<&str> = enabled(config).into_iter().map(ExtraSource::id).collect();
     if !tokens.is_empty() && config.extra_plain_lyrics {
         tokens.push("plain");
+    }
+    if !tokens.is_empty() && keeps_refused_words(config, config.extra_plain_lyrics) {
+        tokens.push(REFUSED_WORDS);
     }
     if config.instrumental_titles {
         tokens.push("instrumental-titles");
@@ -126,6 +132,16 @@ pub fn tokens(config: &ForkConfig) -> String {
         EditionPreference::Clean => tokens.push("edition-clean"),
     }
     tokens.join(",")
+}
+
+/// The token of `tokens` for keeping the words of refused timing.
+pub const REFUSED_WORDS: &str = "refused-words";
+
+/// Whether an answer whose timing cannot be followed is kept as its words
+/// alone: always when plain lyrics are `allowed` for this lookup, otherwise
+/// as `ForkConfig::extra_refused_words` says.
+pub fn keeps_refused_words(config: &ForkConfig, allowed: bool) -> bool {
+    allowed || config.extra_refused_words
 }
 
 /// How an extra source matched, for the download log.
@@ -141,6 +157,87 @@ pub struct ExtraNote {
     /// The text masks words with asterisks (`super::edition`): taken only
     /// when no candidate had them unmasked, or when clean lyrics are wanted.
     pub masked: bool,
+    /// What is wrong with the timing of the answer, if anything
+    /// (`timing_doubt`): such an answer is taken only when no candidate and
+    /// no other source had better, and without its timing when it cannot be
+    /// followed (`TimingDoubt::unusable`; `plain` is then set too).
+    pub timing: Option<TimingDoubt>,
+}
+
+/// What is wrong with the timing of a synced answer (`super::content`). An
+/// extra source is not LRCLIB, where the copies of a song can be compared:
+/// its one text is judged by itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TimingDoubt {
+    /// The lyrics stop long before the file does. They may still be timed
+    /// well as far as they go, so they are kept synced.
+    StopsEarly,
+    /// Stamps past the end of the file: timed for another recording.
+    Overrun,
+    /// Lines stamped faster than anyone sings them (`Timing::rushed`).
+    Rushed,
+}
+
+impl TimingDoubt {
+    /// Whether the timing is worse than none: the words are kept, as plain
+    /// lyrics, and the timing is dropped.
+    pub fn unusable(self) -> bool {
+        matches!(self, TimingDoubt::Overrun | TimingDoubt::Rushed)
+    }
+}
+
+/// What is wrong with the timing of `response`'s synced lyrics for a file of
+/// `duration` seconds. `None` for a sound text and for plain lyrics.
+pub fn timing_doubt(response: &RawResponse, duration: f64) -> Option<TimingDoubt> {
+    let synced = response.synced_lyrics.as_deref().filter(|text| !text.trim().is_empty())?;
+    let timing = Timing::parse(synced);
+    if timing.rushed() {
+        Some(TimingDoubt::Rushed)
+    } else if timing.overruns(duration) {
+        Some(TimingDoubt::Overrun)
+    } else if timing.stops_early(duration) {
+        Some(TimingDoubt::StopsEarly)
+    } else {
+        None
+    }
+}
+
+/// What an answer is held back for, worst first in the order: timing that
+/// cannot be followed, then masked words when uncensored lyrics are
+/// `wanted`, then lyrics that stop early. `None` for an answer to take at
+/// once. A smaller doubt is a better answer.
+pub fn doubt(note: &ExtraNote, wanted: Edition) -> Option<(bool, bool, bool)> {
+    let wrong_words = note.masked && wanted == Edition::Explicit;
+    (wrong_words || note.timing.is_some()).then(|| {
+        (
+            note.timing.is_some_and(TimingDoubt::unusable),
+            wrong_words,
+            note.timing.is_some(),
+        )
+    })
+}
+
+/// An answer whose timing cannot be followed, turned into plain lyrics: the
+/// words are worth having, the stamps are not.
+pub fn without_timing(response: RawResponse, note: ExtraNote) -> (RawResponse, ExtraNote) {
+    let plain = response
+        .plain_lyrics
+        .filter(|text| !text.trim().is_empty())
+        .or_else(|| response.synced_lyrics.as_deref().map(strip_timestamp));
+    (
+        RawResponse {
+            plain_lyrics: plain,
+            synced_lyrics: None,
+            lyricsfile: None,
+            has_word_sync: false,
+            ..response
+        },
+        ExtraNote {
+            plain: true,
+            word_synced: false,
+            ..note
+        },
+    )
 }
 
 impl ExtraNote {
@@ -149,8 +246,13 @@ impl ExtraNote {
         if !self.album_matched {
             text.push_str("; album differs");
         }
-        if self.plain {
-            text.push_str("; plain lyrics");
+        match self.timing {
+            Some(doubt) if doubt.unusable() && self.plain => {
+                text.push_str("; timing refused, saved as plain lyrics");
+            }
+            Some(TimingDoubt::StopsEarly) => text.push_str("; lyrics stop early"),
+            _ if self.plain => text.push_str("; plain lyrics"),
+            _ => {}
         }
         if self.word_synced {
             text.push_str("; word-synced");
@@ -285,7 +387,9 @@ pub struct SkippedCandidate(pub anyhow::Error);
 /// best candidate does not hide the rest. With uncensored lyrics `wanted`,
 /// an answer that masks words ("b***h"; `super::edition`) is held back while
 /// the next candidates are asked, and taken only when none of them has the
-/// words unmasked; the note then says so. When no candidate answers, the
+/// words unmasked; the note then says so. An answer whose timing is in
+/// doubt (`timing_doubt`) is held back the same way, whatever is wanted.
+/// When no candidate answers, the
 /// error is returned as it is if every candidate failed, and as a
 /// `SkippedCandidate` if some answered empty: either way not a certain miss.
 pub async fn first_answer<T, Fetch, Fut>(
@@ -302,20 +406,23 @@ where
     let mut asked = 0;
     let mut failed = 0;
     let mut last_error = None;
-    let mut masked_hit: Option<(RawResponse, ExtraNote)> = None;
+    // The best answer held back so far, with what it was held back for:
+    // timing that cannot be followed is worse than masked words, which are
+    // worse than lyrics that stop early. The first of equals stays.
+    let mut held: Option<((bool, bool, bool), (RawResponse, ExtraNote))> = None;
     for (candidate, rule, album_matched) in picked.into_iter().take(limit) {
         asked += 1;
         match fetch(candidate.id.clone()).await {
             Ok(response) => {
                 if let Some((response, mut note)) = answer(&response, &candidate, rule, album_matched) {
                     note.masked = edition::masked_response(&response);
-                    if note.masked && wanted == Edition::Explicit {
-                        if masked_hit.is_none() {
-                            masked_hit = Some((response, note));
-                        }
-                        continue;
+                    note.timing = timing_doubt(&response, candidate.duration);
+                    let Some(doubt) = doubt(&note, wanted) else {
+                        return Ok(Some((response, note)));
+                    };
+                    if held.as_ref().is_none_or(|(best, _)| doubt < *best) {
+                        held = Some((doubt, (response, note)));
                     }
-                    return Ok(Some((response, note)));
                 }
             }
             Err(error) => {
@@ -324,8 +431,8 @@ where
             }
         }
     }
-    if masked_hit.is_some() {
-        return Ok(masked_hit);
+    if let Some((_, hit)) = held {
+        return Ok(Some(hit));
     }
     match last_error {
         Some(error) if failed == asked => Err(error),
@@ -552,10 +659,17 @@ where
 {
     let outcome: LookupOutcome =
         outcome.map(|(response, note)| (response, note.map(LookupNote::Local)));
-    if classify(&outcome) != Outcome::NotFound {
+    let found = classify(&outcome);
+    let fork_config = app.fork_config();
+    // LRCLIB's plain lyrics are an answer, but a synced text is a better
+    // one: with the local database the sources are asked for it, as the
+    // Upgrade run would on a later pass, and the plain lyrics stay unless
+    // one has it. Online mode passes the server's answer on as it is.
+    let local = fork_config.lyrics_source == LyricsSource::Local;
+    let plain_only = local && matches!(&outcome, Ok((response, _)) if only_plain(response));
+    if found != Outcome::NotFound && !plain_only {
         return outcome;
     }
-    let fork_config = app.fork_config();
     let sources = enabled(&fork_config);
     if sources.is_empty() {
         return outcome;
@@ -566,8 +680,17 @@ where
         album: &track.album_name,
         album_artist: track.album_artist_name.as_deref(),
         duration: track.duration,
-        edition: Default::default(),
+        // The edition setting belongs to the local database's ranking.
+        edition: if local { fork_config.lyrics_edition } else { Default::default() },
     };
+    if plain_only {
+        let ladder = ask(&sources, &request, false, &fork_config).await;
+        let wanted = fork_config.lyrics_edition.wanted(&track.title, &track.album_name);
+        return match ladder.hit {
+            Some(hit) if synced_beats_plain(&hit, wanted) => Ok(hit),
+            _ => outcome,
+        };
+    }
     let ladder = ask(&sources, &request, fork_config.extra_plain_lyrics, &fork_config).await;
     if let Some(hit) = ladder.hit {
         return Ok(hit);
@@ -583,6 +706,30 @@ where
         message: format!("{base} ({})", ladder.trouble.join("; ")),
     }
     .into())
+}
+
+/// Whether an answer is plain lyrics alone: words, no timed lines in the
+/// column or the lyricsfile, not an instrumental mark.
+pub fn only_plain(response: &RawResponse) -> bool {
+    let has = |text: &Option<String>| text.as_deref().is_some_and(|text| !text.trim().is_empty());
+    let file_synced = response
+        .lyricsfile
+        .as_deref()
+        .and_then(|file| crate::lyricsfile::lyrics_presence_from_lyricsfile(file).ok())
+        .is_some_and(|presence| presence.has_synced_lyrics);
+    !response.instrumental && has(&response.plain_lyrics) && !has(&response.synced_lyrics) && !file_synced
+}
+
+/// Whether an extra source's answer may take the place of LRCLIB's plain
+/// lyrics: timed lines with no doubt on the timing, and no masked words when
+/// uncensored lyrics are wanted. The plain lyrics are a sure thing; only a
+/// sound synced text is worth giving them up for.
+pub fn synced_beats_plain(hit: &(RawResponse, Option<LookupNote>), wanted: Edition) -> bool {
+    let (response, note) = hit;
+    let timed = response.synced_lyrics.as_deref().is_some_and(|text| !text.trim().is_empty());
+    let doubted = matches!(note, Some(LookupNote::Extra(note)) if note.timing.is_some());
+    let wrong_words = wanted == Edition::Explicit && edition::masked_response(response);
+    timed && !doubted && !wrong_words
 }
 
 /// What the ladder found for one track.
@@ -608,24 +755,39 @@ pub async fn lookup(
     let ask = |source: ExtraSource| {
         let matcher = &matcher;
         async move {
-            match source {
+            let answer = match source {
                 ExtraSource::Amll => super::word_sync::amll::lookup(request, matcher).await,
                 ExtraSource::Apple => super::word_sync::apple::lookup(request, matcher, config).await,
                 ExtraSource::Netease => netease::lookup(request, matcher, allow_plain).await,
                 ExtraSource::Qq => qq::lookup(request, matcher, allow_plain).await,
-            }
+            }?;
+            // Every source's answer is judged against the file's own
+            // length, also the ones that do not go through `first_answer`.
+            Ok(answer.map(|(response, mut note)| {
+                if note.timing.is_none() {
+                    note.timing = timing_doubt(&response, request.duration);
+                }
+                note.masked = edition::masked_response(&response);
+                (response, note)
+            }))
         }
     };
-    run_ladder(sources, LADDER_BUDGET, &HEALTH, ask).await
+    let wanted = request.edition.wanted(request.title, request.album);
+    let keep_refused = keeps_refused_words(config, allow_plain);
+    run_ladder(sources, LADDER_BUDGET, &HEALTH, wanted, keep_refused, ask).await
 }
 
 /// The ladder itself: asks each source in turn until one answers, all of
 /// them inside one deadline, skipping a paused source and keeping each
-/// source's breaker up to date.
+/// source's breaker up to date. A held answer whose timing cannot be
+/// followed is given as its words alone when `keep_refused`, else dropped:
+/// the sources answered, so that is an honest miss.
 pub async fn run_ladder<Ask, Fut>(
     sources: &[ExtraSource],
     budget: Duration,
     health: &Mutex<Health>,
+    wanted: Edition,
+    keep_refused: bool,
     ask: Ask,
 ) -> Ladder
 where
@@ -634,6 +796,10 @@ where
 {
     let deadline = tokio::time::Instant::now() + budget;
     let mut ladder = Ladder::default();
+    // The best answer held back (`doubt`: its timing, or masked words when
+    // uncensored lyrics are wanted), kept while the sources below are asked
+    // for a sound one, in the same order `first_answer` holds candidates.
+    let mut held: Option<((bool, bool, bool), (RawResponse, ExtraNote))> = None;
     for &source in sources {
         if !super::lock(health).breaker(source).allows(Instant::now()) {
             ladder.trouble.push(format!(
@@ -654,8 +820,13 @@ where
         match result {
             Ok(Ok(Some((response, note)))) => {
                 breaker.succeeded();
-                ladder.hit = Some((response, Some(LookupNote::Extra(note))));
-                return ladder;
+                let Some(doubt) = doubt(&note, wanted) else {
+                    ladder.hit = Some((response, Some(LookupNote::Extra(note))));
+                    return ladder;
+                };
+                if held.as_ref().is_none_or(|(best, _)| doubt < *best) {
+                    held = Some((doubt, (response, note)));
+                }
             }
             Ok(Ok(None)) => breaker.succeeded(),
             // The source answered, one candidate's fetch did not: trouble
@@ -674,6 +845,18 @@ where
                     .trouble
                     .push(format!("{}: no answer in time", source.id()));
             }
+        }
+    }
+    // Nothing sound anywhere: the held answer is better than no lyrics, as
+    // plain text when its timing cannot be followed and the settings keep
+    // such words.
+    if let Some((_, (response, note))) = held {
+        let unusable = note.timing.is_some_and(TimingDoubt::unusable);
+        if !unusable {
+            ladder.hit = Some((response, Some(LookupNote::Extra(note))));
+        } else if keep_refused {
+            let (response, note) = without_timing(response, note);
+            ladder.hit = Some((response, Some(LookupNote::Extra(note))));
         }
     }
     ladder
@@ -712,10 +895,10 @@ mod tests {
             vec![ExtraSource::Netease]
         );
         assert_eq!(enabled(&config(false, true, false)), vec![ExtraSource::Qq]);
-        assert_eq!(tokens(&config(true, false, false)), "netease");
-        assert_eq!(tokens(&config(false, true, false)), "qq");
-        assert_eq!(tokens(&config(true, true, false)), "netease,qq");
-        assert_eq!(tokens(&config(true, true, true)), "netease,qq,plain");
+        assert_eq!(tokens(&config(true, false, false)), "netease,refused-words");
+        assert_eq!(tokens(&config(false, true, false)), "qq,refused-words");
+        assert_eq!(tokens(&config(true, true, false)), "netease,qq,refused-words");
+        assert_eq!(tokens(&config(true, true, true)), "netease,qq,plain,refused-words");
     }
 
     #[test]
@@ -737,13 +920,13 @@ mod tests {
             enabled(&all),
             vec![ExtraSource::Amll, ExtraSource::Netease, ExtraSource::Qq]
         );
-        assert_eq!(tokens(&all), "amll,netease,qq,plain");
+        assert_eq!(tokens(&all), "amll,netease,qq,plain,refused-words");
         let amll_only = ForkConfig {
             extra_amll: true,
             ..config(false, false, false)
         };
         assert_eq!(enabled(&amll_only), vec![ExtraSource::Amll]);
-        assert_eq!(tokens(&amll_only), "amll");
+        assert_eq!(tokens(&amll_only), "amll,refused-words");
         let clean = ForkConfig {
             lyrics_edition: EditionPreference::Clean,
             ..config(false, false, false)
@@ -763,6 +946,7 @@ mod tests {
             plain: false,
             word_synced: false,
             masked: false,
+            timing: None,
         };
         assert_eq!(
             note.text(),
@@ -891,6 +1075,7 @@ mod tests {
             plain: false,
             word_synced: false,
             masked: false,
+            timing: None,
         };
         (
             lrc::to_response(lrc::Lyrics::Plain(candidate.id.clone()), candidate),
@@ -1093,6 +1278,145 @@ mod tests {
         (response, ExtraNote { source, ..note })
     }
 
+    /// A synced answer of 200 seconds, timed in bursts when `rushed`.
+    fn synced(candidate: &Candidate, rushed: bool) -> (RawResponse, ExtraNote) {
+        let text = if rushed {
+            crate::local_db::content::burst_sample()
+        } else {
+            (0..30)
+                .map(|i| format!("[{:02}:{:02}.00] an even line number {i}", i * 6 / 60, i * 6 % 60))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let (_, note) = hit(candidate);
+        (lrc::to_response(lrc::Lyrics::Synced(text), candidate), note)
+    }
+
+    #[test]
+    fn an_answer_timed_in_bursts_waits_for_a_sound_one() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let fetch = |id: String| async move { Ok::<_, anyhow::Error>(id) };
+        let answer = |id: &String, candidate: &Candidate, _: MatchRule, _: bool| {
+            Some(synced(candidate, id.starts_with("rushed")))
+        };
+        let ids = |ids: &[&str]| -> Vec<(Candidate, MatchRule, bool)> {
+            ids.iter()
+                .map(|id| (candidate(id, "x", "y", "z", 200.0), MatchRule::FullArtist, true))
+                .collect()
+        };
+        let (response, note) = runtime
+            .block_on(first_answer(ids(&["rushed-1", "even"]), 3, Edition::Explicit, fetch, answer))
+            .unwrap()
+            .unwrap();
+        assert_eq!(note.timing, None, "the sound candidate is taken");
+        assert!(response.synced_lyrics.is_some());
+
+        let (response, note) = runtime
+            .block_on(first_answer(ids(&["rushed-1", "rushed-2"]), 3, Edition::Explicit, fetch, answer))
+            .unwrap()
+            .expect("rushed lyrics beat no lyrics");
+        assert_eq!(note.timing, Some(TimingDoubt::Rushed));
+        assert!(response.synced_lyrics.is_some(), "the ladder decides what becomes of it");
+    }
+
+    #[test]
+    fn the_ladder_asks_on_past_doubtful_timing_and_drops_timing_nobody_can_follow() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let both = [ExtraSource::Netease, ExtraSource::Qq];
+        let answer = |source: ExtraSource, rushed: bool| {
+            let (response, note) = synced(&candidate("1", "x", "y", "z", 200.0), rushed);
+            let timing = timing_doubt(&response, 200.0);
+            (response, ExtraNote { source, timing, ..note })
+        };
+        // NetEase rushed, QQ sound: QQ's answer is the hit.
+        let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &Mutex::new(Health::default()), Edition::Explicit, true, |source| async move {
+            Ok(Some(answer(source, source == ExtraSource::Netease)))
+        }));
+        match ladder.hit {
+            Some((response, Some(LookupNote::Extra(note)))) => {
+                assert_eq!(note.source, ExtraSource::Qq);
+                assert!(response.synced_lyrics.is_some());
+            }
+            _ => panic!("the sound answer is taken"),
+        }
+        // Only the rushed answer: the words are kept, the timing is not.
+        let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &Mutex::new(Health::default()), Edition::Explicit, true, |source| async move {
+            Ok((source == ExtraSource::Netease).then(|| answer(source, true)))
+        }));
+        match ladder.hit {
+            Some((response, Some(LookupNote::Extra(note)))) => {
+                assert!(response.synced_lyrics.is_none() && response.lyricsfile.is_none());
+                let plain = response.plain_lyrics.unwrap();
+                assert!(plain.contains("n00x") && !plain.contains('['), "{plain}");
+                assert!(note.plain && !note.word_synced);
+                assert!(note.text().ends_with("; timing refused, saved as plain lyrics"), "{}", note.text());
+            }
+            _ => panic!("the words are kept"),
+        }
+        // Unless the settings drop such words: an honest miss, no trouble.
+        let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &Mutex::new(Health::default()), Edition::Explicit, false, |source| async move {
+            Ok((source == ExtraSource::Netease).then(|| answer(source, true)))
+        }));
+        assert!(ladder.hit.is_none() && ladder.trouble.is_empty());
+        // Dropping refused timing leaves a doubt that keeps its timing alone.
+        let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &Mutex::new(Health::default()), Edition::Explicit, false, |source| async move {
+            let (response, note) = synced(&candidate("1", "x", "y", "z", 200.0), false);
+            Ok((source == ExtraSource::Netease).then(|| (response, ExtraNote { source, timing: Some(TimingDoubt::StopsEarly), ..note })))
+        }));
+        assert!(ladder.hit.is_some(), "lyrics that stop early are still taken");
+    }
+
+    #[test]
+    fn keeping_the_words_of_refused_timing_follows_the_settings() {
+        let on = ForkConfig { extra_netease: true, ..ForkConfig::default() };
+        let off = ForkConfig { extra_refused_words: false, ..on.clone() };
+        assert!(keeps_refused_words(&on, false));
+        assert!(!keeps_refused_words(&off, false));
+        assert!(keeps_refused_words(&off, true), "accepting plain lyrics keeps them anyway");
+        assert!(tokens(&on).split(',').any(|token| token == REFUSED_WORDS));
+        assert!(!tokens(&off).split(',').any(|token| token == REFUSED_WORDS));
+        let plain = ForkConfig { extra_plain_lyrics: true, ..off };
+        assert!(tokens(&plain).split(',').any(|token| token == REFUSED_WORDS));
+        assert!(!tokens(&ForkConfig::default()).contains(REFUSED_WORDS), "no source, no token");
+    }
+
+    #[test]
+    fn the_ladder_holds_masked_words_as_first_answer_does() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let both = [ExtraSource::Netease, ExtraSource::Qq];
+        // NetEase: the words unmasked, the lyrics stopping early. QQ: sound
+        // timing, a word masked.
+        let ask = |source: ExtraSource| async move {
+            let (response, note) = synced(&candidate("1", "x", "y", "z", 200.0), false);
+            let note = match source {
+                ExtraSource::Netease => ExtraNote { source, timing: Some(TimingDoubt::StopsEarly), ..note },
+                _ => ExtraNote { source, masked: true, ..note },
+            };
+            Ok(Some((response, note)))
+        };
+        let source = |wanted| {
+            match runtime.block_on(run_ladder(&both, LADDER_BUDGET, &Mutex::new(Health::default()), wanted, true, ask)).hit {
+                Some((_, Some(LookupNote::Extra(note)))) => note.source,
+                _ => panic!("an answer is taken"),
+            }
+        };
+        assert_eq!(source(Edition::Explicit), ExtraSource::Netease, "the words beat an early stop");
+        assert_eq!(source(Edition::Clean), ExtraSource::Qq, "masked words are no doubt for clean lyrics");
+    }
+
+    #[test]
+    fn timing_is_doubted_for_bursts_overruns_and_early_stops() {
+        let candidate = candidate("1", "x", "y", "z", 200.0);
+        let (even, _) = synced(&candidate, false);
+        assert_eq!(timing_doubt(&even, 200.0), None);
+        assert_eq!(timing_doubt(&even, 120.0), Some(TimingDoubt::Overrun));
+        assert_eq!(timing_doubt(&even, 400.0), Some(TimingDoubt::StopsEarly));
+        assert_eq!(timing_doubt(&synced(&candidate, true).0, 200.0), Some(TimingDoubt::Rushed));
+        assert_eq!(timing_doubt(&hit(&candidate).0, 200.0), None, "plain lyrics have no timing to doubt");
+        assert!(TimingDoubt::Rushed.unusable() && TimingDoubt::Overrun.unusable());
+        assert!(!TimingDoubt::StopsEarly.unusable());
+    }
+
     #[test]
     fn the_ladder_reports_trouble_and_pauses_a_failing_source() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -1105,12 +1429,12 @@ mod tests {
             }
         };
         for _ in 0..FAILURE_LIMIT {
-            let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &health, netease_down));
+            let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &health, Edition::Explicit, true, netease_down));
             assert!(ladder.hit.is_none());
             assert_eq!(ladder.trouble, vec!["netease: HTTP 403 Forbidden".to_owned()]);
         }
         let asked = std::sync::atomic::AtomicUsize::new(0);
-        let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &health, |source| {
+        let ladder = runtime.block_on(run_ladder(&both, LADDER_BUDGET, &health, Edition::Explicit, true, |source| {
             if source == ExtraSource::Netease {
                 asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             }
@@ -1137,6 +1461,8 @@ mod tests {
             &[ExtraSource::Netease, ExtraSource::Qq],
             budget,
             &health,
+            Edition::Explicit,
+            true,
             |_| async {
                 tokio::time::sleep(Duration::from_secs(30)).await;
                 Ok(None)

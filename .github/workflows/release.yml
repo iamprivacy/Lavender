@@ -1,6 +1,7 @@
 name: Release
 
-# Builds every platform and attaches the installers to a draft GitHub release.
+# Builds every platform, attaches the installers to a draft GitHub release
+# and publishes it once every build and the signed manifest are in place.
 # Triggered only by version tags, e.g. v0.1.0 (Lavender's own version, from
 # src-tauri/Cargo.toml). Older tags of the form v2.2.0-local.N still build;
 # their "-local.N" suffix lives only in the tag, never in the app version,
@@ -337,3 +338,28 @@ jobs:
             files+=(SHA256SUMS.sig release-assets/latest.json)
           fi
           gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "${files[@]}" --clobber
+
+  # Publishes the draft once every build and the signed manifest are attached,
+  # so a tag push is the whole release. Only for version tags on the public
+  # repo, and never when any build failed: a partial release stays a draft.
+  # A release published with GITHUB_TOKEN fires no "published" event for other
+  # workflows, so the Homebrew cask update is started here by hand.
+  publish:
+    needs: [create-release, bundle, flatpak, manifest]
+    if: >-
+      github.repository == 'iamprivacy/Lavender' &&
+      startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-local.') &&
+      needs.bundle.result == 'success' && needs.flatpak.result == 'success' &&
+      needs.manifest.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Publish the release
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+      - name: Update the Homebrew cask
+        run: gh workflow run homebrew.yml --repo "$GITHUB_REPOSITORY" -f tag="$GITHUB_REF_NAME"

@@ -199,7 +199,12 @@ shown in both modes, an "Extra sources" group switches on the sources asked only
 when LRCLIB has nothing (the AMLL TTML database, Apple Music, NetEase Cloud
 Music, then QQ Music, all off by default) and whether plain lyrics from them
 are accepted (`extraAmll`, `extraApple`, `extraNetease`, `extraQq`,
-`extraPlainLyrics` in the fork config). Apple Music opens a Sign in button
+`extraPlainLyrics` in the fork config); while plain lyrics are not accepted, a
+checkbox keeps the words of lyrics timed too badly to follow (`extraRefusedWords`,
+on by default). A "Repairs" group sets what "Upgrade to the best match" may do with
+damaged lyrics: replace them with a different text (`repairReplacesText`, off by
+default) and, under it and only active with it, keep word timing when removing
+credit lines (`repairKeepsWordTiming`, on). Apple Music opens a Sign in button
 (`apple_sign_in`: the backend opens a private sign-in window and returns the
 `media-user-token` cookie, which fills the field and is checked), a masked field
 for pasting that cookie by hand (`appleUserToken`), a note on what the sign-in

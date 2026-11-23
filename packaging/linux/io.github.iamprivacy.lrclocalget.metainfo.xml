@@ -19,6 +19,16 @@
   <url type="bugtracker">https://github.com/iamprivacy/Lavender/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.4" date="2026-11-22">
+      <description>
+        <ul>
+          <li>Settings for keeping the words of badly timed lyrics and for how Upgrade repairs damaged lyrics</li>
+          <li>Extra-source lyrics no longer start with credit lines, and censored or badly timed ones no longer replace good lyrics</li>
+          <li>When LRCLIB only has plain lyrics, the extra sources are asked for synced ones</li>
+          <li>Upgrade repairs lyrics saved with credit lines or bad timing, keeping word timing</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.3" date="2026-11-22">
       <description>
         <ul>

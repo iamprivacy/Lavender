@@ -448,6 +448,7 @@ pub fn answer(
         plain: false,
         word_synced: lyricsfile::has_words(&lines),
         masked: false,
+        timing: None,
     };
     Some((raw, note))
 }

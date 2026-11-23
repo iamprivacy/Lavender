@@ -321,7 +321,7 @@ pub async fn filter_checked_track_ids(
                 &key,
                 fork_config.fallback_online,
                 fork_config.tolerant_matching,
-                &extra,
+                &super::upgrade::upgrade_tokens(&fork_config),
                 &exported,
             )
         })

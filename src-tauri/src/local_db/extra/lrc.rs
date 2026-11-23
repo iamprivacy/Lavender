@@ -109,6 +109,62 @@ fn header_forms(candidate: &Candidate) -> [String; 2] {
     ]
 }
 
+/// Whether a lyrics text, timed or not, opens with a credit line of a known
+/// role ("作词 : X", "Lyrics by: X"): tags and blank lines aside, its first
+/// line. What an extra source's own header looks like once it has leaked
+/// into stored lyrics.
+pub fn opens_with_credits(text: &str) -> bool {
+    text.lines()
+        .map(|line| line.trim_start_matches('\u{feff}').trim())
+        .filter(|line| !line.is_empty() && !META_TAG.is_match(line))
+        .map(|mut line| {
+            while let Some(stamp) = TIMESTAMP.find(line) {
+                line = line[stamp.end()..].trim_start();
+            }
+            line
+        })
+        .find(|line| !line.is_empty())
+        .is_some_and(|line| CREDIT.is_match(line))
+}
+
+/// The text without the credit lines it opens with: each line that
+/// `opens_with_credits` is dropped until the first line with other words,
+/// tags and blank lines kept. `None` when it opens with none.
+pub fn without_leading_credits(text: &str) -> Option<String> {
+    let mut opening = true;
+    let mut dropped = false;
+    let kept: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            if !opening {
+                return true;
+            }
+            if opens_with_credits(line) {
+                dropped = true;
+                return false;
+            }
+            if has_words(line) {
+                opening = false;
+            }
+            true
+        })
+        .collect();
+    dropped.then(|| kept.join("\n"))
+}
+
+/// Whether a line, timed or not, has words: not blank, not a tag, not a
+/// timestamp alone.
+fn has_words(line: &str) -> bool {
+    let mut line = line.trim_start_matches('\u{feff}').trim();
+    if META_TAG.is_match(line) {
+        return false;
+    }
+    while let Some(stamp) = TIMESTAMP.find(line) {
+        line = line[stamp.end()..].trim_start();
+    }
+    !line.is_empty()
+}
+
 /// Reads the text. `None` when nothing is left after the credit and empty
 /// lines are gone. With a candidate, a header line naming it is dropped too.
 pub fn classify(text: &str, candidate: Option<&Candidate>) -> Option<Lyrics> {
@@ -341,6 +397,27 @@ mod tests {
     use super::*;
 
     const NETEASE: &str = "[00:00.000] 作词 : Adele Adkins\n[00:01.000] 作曲 : Adele Adkins/Greg Kurstin\n[00:06.220]Hello, it's me\n[00:11.320]I was wondering if after all these years you'd like to meet\n[00:17.730]\n[00:23.175]To go over everything\n";
+
+    #[test]
+    fn a_text_that_opens_with_a_credit_is_recognized() {
+        assert!(opens_with_credits(NETEASE));
+        assert!(opens_with_credits("[ti:Song]\n\n[00:00.00] 作曲 : X\n[00:05.00] words"));
+        assert!(opens_with_credits("Lyrics by: X\nwords"));
+        assert!(!opens_with_credits("[00:05.00] words\n[00:09.00] 作词 : X"));
+        assert!(!opens_with_credits("[00:05.00] He said: come home\n[00:09.00] words"));
+        assert!(!opens_with_credits(""));
+    }
+
+    #[test]
+    fn only_the_opening_credit_lines_are_cut() {
+        let cut = without_leading_credits(NETEASE).unwrap();
+        assert!(cut.starts_with("[00:06.220]Hello, it's me"), "{cut}");
+        assert!(!opens_with_credits(&cut));
+        let tagged = without_leading_credits("[ti:Song]\n[00:00.00] 作词 : X\n[00:00.00]\n[00:00.00] words\n[00:09.00] 作曲 : Y").unwrap();
+        assert_eq!(tagged, "[ti:Song]\n[00:00.00]\n[00:00.00] words\n[00:09.00] 作曲 : Y", "a credit after the words stays");
+        assert_eq!(without_leading_credits("Lyrics by: X\nwords").as_deref(), Some("words"));
+        assert_eq!(without_leading_credits("[00:05.00] words\n[00:09.00] 作词 : X"), None);
+    }
 
     #[test]
     fn credits_are_dropped_and_timestamps_written_the_lrclib_way() {

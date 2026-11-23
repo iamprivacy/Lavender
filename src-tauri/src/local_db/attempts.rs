@@ -246,7 +246,7 @@ pub fn note_upgrade_kept(app: &AppHandle, track: &PersistentTrack, formats: &[Ex
             lyrics_hash: lyrics_hash(track.lyricsfile.as_deref()),
             online_checked: fork_config.fallback_online,
             tolerant: fork_config.tolerant_matching,
-            extra_sources: extra::tokens(&fork_config),
+            extra_sources: super::upgrade::upgrade_tokens(&fork_config),
             exported: export_tokens(formats),
         },
     );
@@ -612,7 +612,8 @@ fn tokens_cover(recorded: &str, required: &str) -> bool {
 
 /// The ids in `ids` whose remembered upgrade check still holds: same
 /// database, same tags, the same lyrics stored (by hash), a run that asked
-/// at least as much as the current settings ask (as `checked_ids`), and a
+/// at least as much as the current settings ask (as `checked_ids`, with the
+/// token list from `upgrade::upgrade_tokens`), and a
 /// run that wrote every export format in `exported` (a token list from
 /// `export_tokens`). Only the requested ids' rows are read, `CHECKED_CHUNK`
 /// at a time.

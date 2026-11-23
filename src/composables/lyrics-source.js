@@ -18,6 +18,9 @@ const forkConfigState = ref({
   extraNetease: false,
   extraQq: false,
   extraPlainLyrics: false,
+  extraRefusedWords: true,
+  repairReplacesText: false,
+  repairKeepsWordTiming: true,
   exportWordTimestamps: false,
   lyricsEdition: 'follow-file',
 })

@@ -187,6 +187,11 @@ pub async fn get_raw_noted(
                 if let Some((even, note)) = evener_copy(db, &request, &track)? {
                     return Ok((uncensored(db, wanted, even)?.into_get_response(), Some(note)));
                 }
+                // So does an exact hit whose timed lines cannot serve the
+                // file at all (`Timing::broken`).
+                if let Some((sound, note)) = sounder_copy(db, &request, &track)? {
+                    return Ok((uncensored(db, wanted, sound)?.into_get_response(), Some(note)));
+                }
                 return Ok((uncensored(db, wanted, track)?.into_get_response(), None));
             }
             match tolerant::find_tolerant(
@@ -326,6 +331,41 @@ fn best_sibling(
     Ok(tolerant::best_of(request, siblings)
         .map(|(track, _)| track)
         .unwrap_or_else(|| exact.clone()))
+}
+
+/// The copy to take over an exact hit whose synced lyrics are broken
+/// (`Timing::broken`: every line on one stamp, stamps past the file's end,
+/// or lyrics that stop long before it): the best row of the tolerant
+/// ranking with synced lyrics that are not. `None` keeps the hit. As with
+/// `evener_copy`, the album decides which row the server would answer with,
+/// not which copy can be followed; the ranking only lists rows of the
+/// file's own performance, so a live take never stands in. A sound hit
+/// costs one parse and no query.
+fn sounder_copy(
+    db: &OpenDb,
+    request: &TrackRequest,
+    exact: &queries::LocalTrack,
+) -> Result<Option<(queries::LocalTrack, MatchNote)>, LocalDbError> {
+    let broken = |track: &queries::LocalTrack| {
+        track
+            .lyrics
+            .as_ref()
+            .and_then(|lyrics| lyrics.synced_lyrics.as_deref())
+            .map(|text| Timing::parse(text).broken(request.duration))
+    };
+    if broken(exact) != Some(true) {
+        return Ok(None);
+    }
+    let ranked = tolerant::find_ranked(
+        &db.conn,
+        db.info.columns(),
+        db.info.has_fts,
+        db.info.has_metadata_index(),
+        request,
+    )?;
+    Ok(ranked
+        .into_iter()
+        .find(|(track, _)| track.id != exact.id && broken(track) == Some(false)))
 }
 
 /// The copy to take over an exact hit whose synced lyrics are timed unevenly:
@@ -913,6 +953,87 @@ mod tests {
         )
     }
 
+    /// LRCLIB answered `found`; the extra sources would answer `hit`.
+    /// Returns what the download saves and how often the ladder was asked.
+    fn found_then_extra(
+        config: ForkConfig,
+        found: &str,
+        hit: Option<&'static str>,
+        note: Option<extra::LookupNote>,
+    ) -> (lrclib::get::RawResponse, bool, usize) {
+        let host = Recorder::new(config);
+        let track = track("Shining Star");
+        let asked = AtomicUsize::new(0);
+        let found: lrclib::get::RawResponse = serde_json::from_str(found).unwrap();
+        let outcome = block_on(extra::after_lrclib_with(&host, &track, Ok((found, None)), |_, _, allow_plain, _| {
+            asked.fetch_add(1, Ordering::SeqCst);
+            assert!(!allow_plain, "plain lyrics are already there");
+            Box::pin(async move {
+                Ladder {
+                    hit: hit.map(|json| (serde_json::from_str(json).unwrap(), note)),
+                    trouble: vec!["qq: no answer in time".to_owned()],
+                }
+            })
+        }));
+        let (response, note) = outcome.expect("the plain lyrics are an answer whatever the sources say");
+        (response, note.is_some(), asked.load(Ordering::SeqCst))
+    }
+
+    #[test]
+    fn plain_lyrics_from_lrclib_give_way_only_to_a_sound_synced_answer() {
+        const PLAIN: &str = r#"{"id":3,"name":"Shining Star","trackName":"Shining Star","artistName":"Alpha","albumName":"Solo","duration":204.0,"instrumental":false,"plainLyrics":"Shine on","syncedLyrics":null}"#;
+        const MASKED: &str = r#"{"id":null,"name":"Shining Star","trackName":"Shining Star","artistName":"Alpha","albumName":"Solo","duration":204.0,"instrumental":false,"plainLyrics":"Shine on you b***h","syncedLyrics":"[00:01.00] Shine on you b***h"}"#;
+        let netease_on = || ForkConfig {
+            extra_netease: true,
+            lyrics_source: LyricsSource::Local,
+            ..online_config()
+        };
+        let note = |timing| {
+            Some(extra::LookupNote::Extra(extra::ExtraNote {
+                source: extra::ExtraSource::Netease,
+                rule: MatchRule::FullArtist,
+                album_matched: true,
+                plain: false,
+                word_synced: false,
+                masked: false,
+                timing,
+            }))
+        };
+
+        let (response, noted, asked) = found_then_extra(netease_on(), PLAIN, Some(FOUND), note(None));
+        assert_eq!(asked, 1);
+        assert_eq!(response.synced_lyrics.as_deref(), Some("[00:01.00] Shine on"));
+        assert!(noted, "the log says which source answered");
+
+        let kept = |hit, note| {
+            let (response, noted, asked) = found_then_extra(netease_on(), PLAIN, hit, note);
+            assert_eq!(asked, 1);
+            assert!(response.synced_lyrics.is_none() && !noted);
+            assert_eq!(response.plain_lyrics.as_deref(), Some("Shine on"));
+        };
+        kept(None, None);
+        kept(Some(PLAIN), note(None));
+        kept(Some(FOUND), note(Some(extra::TimingDoubt::StopsEarly)));
+        kept(Some(MASKED), note(None));
+
+        // With no source on, in Online mode, and for an answer that has
+        // timed lines, nothing is asked.
+        let (_, _, asked) = found_then_extra(
+            ForkConfig { lyrics_source: LyricsSource::Local, ..online_config() },
+            PLAIN,
+            Some(FOUND),
+            note(None),
+        );
+        assert_eq!(asked, 0);
+        let (response, _, asked) =
+            found_then_extra(ForkConfig { extra_netease: true, ..online_config() }, PLAIN, Some(FOUND), note(None));
+        assert_eq!(asked, 0, "Online mode passes the server's plain lyrics on as upstream does");
+        assert!(response.synced_lyrics.is_none());
+        let (response, _, asked) = found_then_extra(netease_on(), FOUND, Some(MASKED), note(None));
+        assert_eq!(asked, 0);
+        assert_eq!(response.synced_lyrics.as_deref(), Some("[00:01.00] Shine on"));
+    }
+
     #[test]
     fn an_online_miss_with_both_extra_switches_off_asks_nothing_more() {
         let (outcome, online, asked, requests) = miss_then_extra(online_config());
@@ -1072,6 +1193,65 @@ mod tests {
         assert_eq!(response.album_name.as_deref(), Some("1993 - Pablo Honey"));
         assert_eq!(response.synced_lyrics.as_deref(), Some("[00:01.00] studio take"));
         assert!(note.is_some_and(|note| !note.album_matched), "a tolerant swap says how it matched");
+    }
+
+    #[test]
+    fn an_exact_hit_with_broken_timing_is_swapped_for_a_sound_copy_of_the_same_recording() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = fixture_db(dir.path());
+        let timed = |step_ms: i64| {
+            (0..30)
+                .map(|i| {
+                    let at = 5_000 + i * step_ms;
+                    format!("[{:02}:{:02}.00] line number {i}", at / 60_000, at % 60_000 / 1000)
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        // The album's own copy stops after half a minute of a four minute
+        // song; the single's copy runs to the end.
+        {
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            insert_row(&conn, 8100, "Halo", "Machine Head", "The Blackening", 240.0, Some(&timed(1_000)), None, false);
+            insert_row(&conn, 8101, "Halo", "Machine Head", "Halo (Single)", 240.0, Some(&timed(7_000)), None, false);
+        }
+        let (response, note) = local_get(&path, "Halo", "The Blackening", "Machine Head", 240.0);
+        assert_eq!(response.album_name.as_deref(), Some("Halo (Single)"));
+        assert!(!note.unwrap().album_matched);
+        // The ranking agrees, so an Upgrade run does not swap the broken
+        // copy back in: the saved lyrics are its best synced row.
+        {
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            let request = TrackRequest {
+                title: "Halo",
+                artist: "Machine Head",
+                album: "The Blackening",
+                album_artist: None,
+                duration: 240.0,
+                edition: Default::default(),
+            };
+            let candidates: Vec<(queries::LocalTrack, Option<MatchNote>)> =
+                tolerant::find_ranked(&conn, super::super::test_support::ALL_COLUMNS, false, false, &request)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(track, note)| (track, Some(note)))
+                    .collect();
+            assert_eq!(candidates[0].0.id, 8101);
+            assert_eq!(
+                super::super::upgrade::synced_verdict(response.synced_lyrics.as_deref().unwrap(), None, &candidates),
+                super::super::upgrade::SyncedVerdict::Best
+            );
+        }
+
+        // A sound exact hit stays, whatever else is filed elsewhere.
+        {
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            insert_row(&conn, 8102, "Aesthetics of Hate", "Machine Head", "The Blackening", 240.0, Some(&timed(7_000)), None, false);
+            insert_row(&conn, 8103, "Aesthetics of Hate", "Machine Head", "Single", 240.0, Some(&timed(7_000)), None, false);
+        }
+        let (response, note) = local_get(&path, "Aesthetics of Hate", "The Blackening", "Machine Head", 240.0);
+        assert_eq!(response.album_name.as_deref(), Some("The Blackening"));
+        assert!(note.is_none());
     }
 
     #[test]

@@ -177,6 +177,7 @@ pub fn answer(
                 plain: false,
                 word_synced: true,
                 masked: false,
+                timing: None,
             };
             return Some((raw, note));
         }
@@ -193,6 +194,7 @@ pub fn answer(
         plain,
         word_synced: false,
         masked: false,
+        timing: None,
     };
     Some((lrc::to_response(lyrics, candidate), note))
 }

@@ -20,10 +20,30 @@
 //! words unmasked and keeps the timing (synced for synced). This is how a
 //! library that was downloaded before the edition rules is set right in one
 //! run, without redownloading everything.
+//!
+//! Stored lyrics with the marks of an extra source's answer taken before
+//! its filters caught them (`stored_damage`) are mended too, as far as the
+//! repair rules allow (`RepairRules`, from the settings). Credit lines at
+//! the top are cut in place (`without_credits`), everything else kept,
+//! word timings included. Timed lines in bursts nobody can follow: the
+//! ordinary lookup runs again, and by default its answer replaces them only
+//! when it is their own text (the same words, so their words without the
+//! timing, which is what a download saves for them now, or a row of the
+//! database), since lyrics that match no row may be the user's edits. With
+//! a different text allowed, any answer free of the damage (`repairs`)
+//! replaces them, and for credits the cut is what is left when none does;
+//! word timings then give way only to word timings unless the rules trade
+//! them.
+//!
+//! Word timings from an extra source replace the database's lyrics only as
+//! the same lyrics with more detail (`word_sync_improves`): unmasked when
+//! uncensored lyrics are wanted, with no doubt on the timing, and with lines
+//! that agree with the stored ones.
 
 use tauri::AppHandle;
 
 use super::config::{ForkConfig, LyricsSource};
+use super::content::Timing;
 use super::edition::{self, Edition};
 use super::extra::{self, LookupNote};
 use super::metadata_parse::{strip_badges, title_says_instrumental};
@@ -174,17 +194,18 @@ fn plain_form(text: &str) -> String {
 /// correction is kept even when the timed lines still match the row. With
 /// nothing to compare on either side the answer is yes.
 fn same_plain(stored: Option<&str>, candidate: &LocalTrack) -> bool {
-    let Some(stored) = stored.map(plain_form).filter(|text| !text.is_empty()) else {
+    let plain = |text: &str| plain_form(&extra::lrc::without_leading_credits(text).unwrap_or_else(|| text.to_owned()));
+    let Some(stored) = stored.map(plain).filter(|text| !text.is_empty()) else {
         return true;
     };
     let Some(lyrics) = candidate.lyrics.as_ref() else {
         return true;
     };
-    let row_plain = lyrics.plain_lyrics.as_deref().map(plain_form);
+    let row_plain = lyrics.plain_lyrics.as_deref().map(plain);
     let from_lines = lyrics
         .synced_lyrics
         .as_deref()
-        .map(|text| plain_form(&crate::utils::strip_timestamp(text)));
+        .map(|text| plain(&crate::utils::strip_timestamp(text)));
     match (row_plain, from_lines) {
         (None, None) => true,
         (plain, lines) => plain.as_deref() == Some(&stored) || lines.as_deref() == Some(&stored),
@@ -198,8 +219,11 @@ fn tier(candidate: &(LocalTrack, Option<MatchNote>)) -> usize {
 }
 
 /// The same timed lines, allowing for the timestamp precision.
+/// A credit block at the top of either is left out, so stored lyrics whose
+/// credits were cut in place still match their row.
 pub fn same_lines(a: &str, b: &str) -> bool {
-    let (a, b) = (parse_lrc(a).timed_lines, parse_lrc(b).timed_lines);
+    let cut = |text: &str| extra::lrc::without_leading_credits(text).unwrap_or_else(|| text.to_owned());
+    let (a, b) = (parse_lrc(&cut(a)).timed_lines, parse_lrc(&cut(b)).timed_lines);
     !a.is_empty()
         && a.len() == b.len()
         && a.iter().zip(&b).all(|(x, y)| {
@@ -241,12 +265,64 @@ fn request<'a>(track: &'a PersistentTrack, config: &ForkConfig) -> TrackRequest<
     }
 }
 
+/// Whether a fresh answer replaces stored lyrics that are `masked` (with
+/// uncensored lyrics wanted), carry `damage`, or both, and the log line for
+/// it. An uncensored answer comes first; an answer that masks the words
+/// again still mends the damage of lyrics masked already, so lyrics from a
+/// source that has no other text at least lose their credit lines. Stored
+/// lyrics with the words unmasked never give them up to mend damage when
+/// uncensored lyrics are `wanted`.
+///
+/// What may mend damage follows the `rules`. Credit lines are cut in place
+/// (`without_credits`) unless a different text may replace the lyrics;
+/// then stored word timings give way only to word timings when the rules
+/// keep them. Timing in bursts gives way to a different text only when the
+/// rules allow it, or when the lyrics are the answer's `own_text` (the same
+/// words, or a row of the database): otherwise they may be lyrics the user
+/// edited, which only the user replaces.
+#[allow(clippy::too_many_arguments)]
+pub fn fresh_replaces(
+    stored: Stored,
+    masked: bool,
+    damage: Option<Damage>,
+    wanted: Edition,
+    rules: RepairRules,
+    own_text: bool,
+    response: &RawResponse,
+    note: Option<&LookupNote>,
+) -> Option<&'static str> {
+    if masked && replaces_masked(stored, response) {
+        return Some("Replaced lyrics with masked words by an uncensored text");
+    }
+    if wanted == Edition::Explicit && !masked && edition::masked_response(response) {
+        return None;
+    }
+    let allowed = |damage: Damage| match damage {
+        Damage::Credits => {
+            rules.replaces_text
+                && !(rules.keeps_word_timing
+                    && stored == Stored::WordSynced
+                    && !response_is_word_synced(response))
+        }
+        Damage::Rushed => rules.replaces_text || own_text,
+    };
+    let damage = damage.filter(|damage| allowed(*damage) && repairs(*damage, stored, response, note))?;
+    Some(match damage {
+        Damage::Credits => "Replaced lyrics that opened with credit lines",
+        Damage::Rushed if !answer_synced(response) => {
+            "Replaced lyrics timed too badly to follow by their words alone"
+        }
+        Damage::Rushed => "Replaced lyrics timed too badly to follow",
+    })
+}
+
 /// A word-synced answer from the enabled extra sources, if any gives one,
 /// and whether a source failed, ran out of time or was paused, in which
 /// case a keep decided without its answer is not settled.
 async fn word_synced_from_extra(
     config: &ForkConfig,
     track: &PersistentTrack,
+    stored_synced: &str,
 ) -> (Option<(RawResponse, Option<LookupNote>)>, bool) {
     let sources = extra::enabled(config);
     if sources.is_empty() {
@@ -254,8 +330,296 @@ async fn word_synced_from_extra(
     }
     let ladder = extra::lookup(&sources, &request(track, config), false, config).await;
     let trouble = !ladder.trouble.is_empty();
-    let hit = ladder.hit.filter(|hit| response_is_word_synced(&hit.0));
+    let wanted = config.lyrics_edition.wanted(&track.title, &track.album_name);
+    let hit = ladder
+        .hit
+        .filter(|hit| word_sync_improves(stored_synced, hit, wanted));
     (hit, trouble)
+}
+
+/// Whether a word-synced answer from an extra source may replace the stored
+/// line-synced lyrics of the local database. Word timings are an upgrade
+/// only for the same lyrics timed alike, so the answer must carry word
+/// timings, must not mask words when uncensored lyrics are wanted, must have
+/// no doubt on its timing (`extra::timing_doubt`), and its lines must agree
+/// with the stored ones (`Timing::agrees_with`: the same text, starting
+/// within a second and a half). An answer that is another transcription or
+/// another cut is not the stored lyrics with more detail; it is other
+/// lyrics, and the database's stay.
+pub fn word_sync_improves(
+    stored_synced: &str,
+    hit: &(RawResponse, Option<LookupNote>),
+    wanted: Edition,
+) -> bool {
+    let (response, note) = hit;
+    if !response_is_word_synced(response) {
+        return false;
+    }
+    if wanted == Edition::Explicit && edition::masked_response(response) {
+        return false;
+    }
+    if matches!(note, Some(LookupNote::Extra(note)) if note.timing.is_some()) {
+        return false;
+    }
+    response
+        .synced_lyrics
+        .as_deref()
+        .is_some_and(|answer| Timing::parse(stored_synced).agrees_with(&Timing::parse(answer)))
+}
+
+/// What is wrong with stored lyrics that a fresh lookup would no longer
+/// save: the marks of an extra source's answer taken before its filters
+/// caught them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Damage {
+    /// The text opens with a credit line ("作词 : X").
+    Credits,
+    /// The timed lines come in bursts nobody can follow (`Timing::rushed`).
+    Rushed,
+}
+
+const MASKED_KEPT: &str = "Kept lyrics with masked words, no uncensored text found";
+const CREDITS_CUT: &str = "Removed credit lines from the top of the lyrics";
+const RUSHED_KEPT_OTHER_TEXT: &str =
+    "Kept lyrics timed too badly to follow, the only fix is a different text (see Repairs setting)";
+
+/// What a repair of damaged lyrics may do, from the settings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RepairRules {
+    /// A different text may replace damaged lyrics, even lyrics the user
+    /// edited (`ForkConfig::repair_replaces_text`).
+    pub replaces_text: bool,
+    /// When a different text may replace them, stored word timings give
+    /// way only to word timings (`ForkConfig::repair_keeps_word_timing`).
+    pub keeps_word_timing: bool,
+}
+
+impl RepairRules {
+    pub fn of(config: &ForkConfig) -> RepairRules {
+        RepairRules {
+            replaces_text: config.repair_replaces_text,
+            keeps_word_timing: config.repair_keeps_word_timing,
+        }
+    }
+}
+
+/// The token list the Upgrade memory is keyed by: `extra::tokens`, plus a
+/// token for each repair rule that allows more than the default, so turning
+/// one on looks at the kept tracks again. `lookup_attempts` keeps
+/// `extra::tokens`: these rules never change what a lookup finds.
+pub fn upgrade_tokens(config: &ForkConfig) -> String {
+    let mut tokens: Vec<String> = extra::tokens(config)
+        .split(',')
+        .filter(|token| !token.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if config.repair_replaces_text {
+        tokens.push("repair-replaces-text".to_owned());
+        if !config.repair_keeps_word_timing {
+            tokens.push("trade-word-timing".to_owned());
+        }
+    }
+    tokens.join(",")
+}
+
+/// The stored lyricsfile without the credit lines it opens with, in its
+/// timed lines (word timings kept) and in its plain text, every other field
+/// as it was. `None` when it opens with none, or nothing would be left.
+pub fn without_credits(lyricsfile: &str) -> Option<String> {
+    use serde_yaml::Value;
+    let mut document: Value = serde_yaml::from_str(lyricsfile).ok()?;
+    let mut changed = false;
+    if let Some(lines) = document.get_mut("lines").and_then(Value::as_sequence_mut) {
+        let mut opening = true;
+        lines.retain(|line| {
+            if !opening {
+                return true;
+            }
+            let text = line.get("text").and_then(Value::as_str).unwrap_or("");
+            if extra::lrc::opens_with_credits(text) {
+                changed = true;
+                return false;
+            }
+            if !text.trim().is_empty() {
+                opening = false;
+            }
+            true
+        });
+    }
+    if let Some(plain) = document.get_mut("plain") {
+        if let Some(cut) = plain.as_str().and_then(extra::lrc::without_leading_credits) {
+            *plain = Value::String(cut);
+            changed = true;
+        }
+    }
+    if !changed {
+        return None;
+    }
+    let text = serde_yaml::to_string(&document).ok()?;
+    let parsed = lyricsfile::parse_lyricsfile(&text).ok()?;
+    let has_words = |text: &Option<String>| text.as_deref().is_some_and(|text| !text.trim().is_empty());
+    (has_words(&parsed.synced_lyrics) || has_words(&parsed.plain_lyrics)).then_some(text)
+}
+
+/// The track's stored lyrics with their opening credit lines cut, as an
+/// answer to save (`without_credits`).
+fn credits_cut(track: &PersistentTrack) -> Option<RawResponse> {
+    let file = without_credits(track.lyricsfile.as_deref()?)?;
+    let parsed = lyricsfile::parse_lyricsfile(&file).ok()?;
+    let presence = lyricsfile::lyrics_presence_from_lyricsfile(&file).ok()?;
+    Some(RawResponse {
+        id: None,
+        track_name: Some(track.title.clone()),
+        plain_lyrics: parsed.plain_lyrics,
+        synced_lyrics: parsed.synced_lyrics,
+        lyricsfile: Some(file),
+        instrumental: false,
+        has_word_sync: presence.has_word_synced_lyrics,
+        lang: None,
+        isrc: None,
+        spotify_id: None,
+        name: Some(track.title.clone()),
+        album_name: Some(track.album_name.clone()),
+        artist_name: Some(track.artist_name.clone()),
+        release_date: None,
+        duration: Some(track.duration),
+    })
+}
+
+/// The words of a text, timed or not, as `plain_form` compares them.
+fn words(text: &str) -> String {
+    plain_form(&crate::utils::strip_timestamp(text))
+}
+
+/// The share of the longer text's lines the shorter one must have for two
+/// texts to be the same words with a line added or dropped.
+const SAME_WORDS_SHARE: f64 = 0.8;
+
+/// Whether an answer has the same words as the stored lyrics, in its timed
+/// lines or its plain text: the same source's text, whatever its timing.
+/// Lines are compared in order, and one text may lack a few lines of the
+/// other (`SAME_WORDS_SHARE`): stored lyrics were saved before today's
+/// filters, so a credit or header line one of them dropped does not make
+/// them another text. A changed line does.
+pub fn same_words(stored: &str, response: &RawResponse) -> bool {
+    let stored = words(stored);
+    let stored: Vec<&str> = stored.lines().collect();
+    !stored.is_empty()
+        && [response.synced_lyrics.as_deref(), response.plain_lyrics.as_deref()]
+            .into_iter()
+            .flatten()
+            .any(|text| {
+                let answer = words(text);
+                let answer: Vec<&str> = answer.lines().collect();
+                let (short, long) = if answer.len() <= stored.len() { (&answer, &stored) } else { (&stored, &answer) };
+                !short.is_empty()
+                    && short.len() as f64 >= long.len() as f64 * SAME_WORDS_SHARE
+                    && is_subsequence(short, long)
+            })
+}
+
+/// Whether every line of `short` appears in `long`, in the same order.
+fn is_subsequence(short: &[&str], long: &[&str]) -> bool {
+    let mut rest = long.iter();
+    short.iter().all(|line| rest.any(|other| other == line))
+}
+
+/// Whether the stored synced lyrics are a row of the database.
+fn matches_a_row(stored_synced: &str, stored_plain: Option<&str>, candidates: &[(LocalTrack, Option<MatchNote>)]) -> bool {
+    candidates.iter().any(|(candidate, _)| {
+        candidate_synced(candidate).is_some_and(|text| same_lines(stored_synced, text))
+            && same_plain(stored_plain, candidate)
+    })
+}
+
+/// What a failed lookup for masked or damaged lyrics leaves the run to do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FailedRepair {
+    /// Go on with the run as for any stored lyrics.
+    GoOn,
+    /// Keep the lyrics, settled: an honest miss is an answer.
+    Keep(&'static str),
+    /// Keep the lyrics, not settled: a source failed, ran out of time or
+    /// was paused, and may answer on the next run.
+    Unsettled(&'static str),
+    /// The request never reached a server: the error goes back to the run,
+    /// which waits for the connection and asks again.
+    Outage,
+}
+
+/// `FailedRepair` for lyrics that are `masked` (with uncensored lyrics
+/// wanted), carry `damage`, or both, after a lookup that failed: an honest
+/// `miss`, an `outage`, or neither.
+pub fn after_failed_repair(masked: bool, damage: Option<Damage>, miss: bool, outage: bool) -> FailedRepair {
+    if outage {
+        FailedRepair::Outage
+    } else if miss {
+        if masked {
+            FailedRepair::Keep(MASKED_KEPT)
+        } else {
+            FailedRepair::GoOn
+        }
+    } else if masked {
+        FailedRepair::Unsettled(MASKED_KEPT)
+    } else {
+        FailedRepair::Unsettled(damage.map_or("Kept stored lyrics", Damage::kept))
+    }
+}
+
+impl Damage {
+    /// The log line for lyrics with this damage that no answer mended.
+    pub fn kept(self) -> &'static str {
+        match self {
+            Damage::Credits => "Kept lyrics that open with credit lines, no clean text found",
+            Damage::Rushed => "Kept lyrics timed too badly to follow, no better text found",
+        }
+    }
+}
+
+/// The damage in the stored lyrics, if any.
+pub fn stored_damage(track: &PersistentTrack) -> Option<Damage> {
+    let synced = stored_synced(track);
+    if synced.as_deref().is_some_and(extra::lrc::opens_with_credits)
+        || stored_plain(track).as_deref().is_some_and(extra::lrc::opens_with_credits)
+    {
+        return Some(Damage::Credits);
+    }
+    synced
+        .as_deref()
+        .is_some_and(|text| Timing::parse(text).rushed())
+        .then_some(Damage::Rushed)
+}
+
+/// Whether a fresh answer may replace stored lyrics with `damage`: it is
+/// free of that damage and loses no timing, except that lyrics timed in
+/// bursts also give way to the same source's words without timing, which is
+/// what a download saves for them today.
+pub fn repairs(damage: Damage, stored: Stored, response: &RawResponse, note: Option<&LookupNote>) -> bool {
+    if response.instrumental {
+        return false;
+    }
+    let texts = [response.synced_lyrics.as_deref(), response.plain_lyrics.as_deref()];
+    if texts.into_iter().flatten().any(extra::lrc::opens_with_credits) {
+        return false;
+    }
+    let synced = answer_synced(response);
+    let rushed = response
+        .synced_lyrics
+        .as_deref()
+        .is_some_and(|text| Timing::parse(text).rushed());
+    match damage {
+        Damage::Credits => match stored {
+            Stored::Synced | Stored::WordSynced => synced && !rushed,
+            _ => texts.into_iter().flatten().any(|text| !text.trim().is_empty()),
+        },
+        Damage::Rushed => {
+            let refused = matches!(
+                note,
+                Some(LookupNote::Extra(note)) if note.plain && note.timing.is_some_and(extra::TimingDoubt::unusable)
+            );
+            (synced && !rushed) || refused
+        }
+    }
 }
 
 /// The best candidate with synced lyrics, in rank order.
@@ -315,9 +679,26 @@ pub async fn lookup(
     // Masked words are the wrong edition when uncensored lyrics are wanted,
     // whoever wrote them: the lookup runs again, now ranking the uncensored
     // texts first, and its answer replaces them when it has the words.
-    if config.lyrics_edition.wanted(&track.title, &track.album_name) == Edition::Explicit
-        && stored_masked(track)
-    {
+    //
+    // Lyrics an extra source's answer left damaged (its credits at the top,
+    // timing in bursts) are mended as the repair rules allow (`RepairRules`):
+    // credit lines are cut in place, everything else kept, unless a
+    // different text may replace the lyrics; then the fresh answer is tried
+    // first and the cut is what is left. Damage alone that nothing mends
+    // leaves the run to go on as for any stored lyrics.
+    let wanted = config.lyrics_edition.wanted(&track.title, &track.album_name);
+    let masked = wanted == Edition::Explicit && stored_masked(track);
+    let rules = RepairRules::of(&config);
+    let found = stored_damage(track);
+    let cut = (found == Some(Damage::Credits)).then(|| credits_cut(track)).flatten();
+    // Credits nothing can cut, with no different text allowed: nothing to mend.
+    let damage = found.filter(|damage| *damage != Damage::Credits || rules.replaces_text || cut.is_some());
+    if !masked && !rules.replaces_text {
+        if let Some(cut) = cut {
+            return Ok(Upgrade::save((cut, None), Some(CREDITS_CUT)));
+        }
+    }
+    if masked || damage.is_some() {
         let outcome = source::get_raw_noted(
             app,
             &track.title,
@@ -330,17 +711,60 @@ pub async fn lookup(
         )
         .await;
         let outcome = extra::after_lrclib(app, track, outcome).await;
-        return Ok(match outcome {
-            Ok(hit) if replaces_masked(stored, &hit.0) => {
-                Upgrade::save(hit, Some("Replaced lyrics with masked words by an uncensored text"))
+        // An honest miss, as `attempts::note_outcome` would remember it: not
+        // one given online after the database failed to answer.
+        let miss = super::attempts::classify(&outcome) == super::attempts::Outcome::NotFound
+            && !outcome
+                .as_ref()
+                .is_err_and(|error| error.downcast_ref::<source::AfterLocalTrouble>().is_some());
+        match outcome {
+            Ok(hit) => {
+                // Timing in bursts gives way to the lyrics' own text with
+                // the default rules: the same words, or a row of the database.
+                let own_text = if damage == Some(Damage::Rushed) && !rules.replaces_text {
+                    let synced = stored_synced(track).unwrap_or_default();
+                    same_words(&synced, &hit.0) || {
+                        let candidates = source::local_candidates(app, track).await?;
+                        matches_a_row(&synced, stored_plain(track).as_deref(), &candidates)
+                    }
+                } else {
+                    false
+                };
+                let (response, note) = (&hit.0, hit.1.as_ref());
+                if let Some(message) = fresh_replaces(stored, masked, damage, wanted, rules, own_text, response, note) {
+                    return Ok(Upgrade::save(hit, Some(message)));
+                }
+                if let Some(cut) = cut {
+                    return Ok(Upgrade::save((cut, None), Some(CREDITS_CUT)));
+                }
+                if masked {
+                    return Ok(Upgrade::keep(MASKED_KEPT));
+                }
+                let any_text = RepairRules { replaces_text: true, ..rules };
+                if damage == Some(Damage::Rushed)
+                    && fresh_replaces(stored, false, damage, wanted, any_text, false, response, note).is_some()
+                {
+                    return Ok(Upgrade::keep(RUSHED_KEPT_OTHER_TEXT));
+                }
             }
-            Ok(_) => Upgrade::keep("Kept lyrics with masked words, no uncensored text found"),
-            // A source failed, ran out of time or was paused: it may answer
-            // next time, so the keep is not settled.
-            Err(error) => Upgrade::keep_unsettled(format!(
-                "Kept lyrics with masked words, no uncensored text found ({error})"
-            )),
-        });
+            Err(error) => {
+                let outage = crate::download_run::is_outage(&error)
+                    || crate::download_run::server_wait(&error).is_some();
+                if !outage {
+                    if let Some(cut) = cut {
+                        return Ok(Upgrade::save((cut, None), Some(CREDITS_CUT)));
+                    }
+                }
+                match after_failed_repair(masked, damage, miss, outage) {
+                    FailedRepair::GoOn => {}
+                    FailedRepair::Keep(kept) => return Ok(Upgrade::keep(kept)),
+                    FailedRepair::Unsettled(kept) => {
+                        return Ok(Upgrade::keep_unsettled(format!("{kept} ({error})")));
+                    }
+                    FailedRepair::Outage => return Err(error),
+                }
+            }
+        }
     }
     match stored {
         Stored::WordSynced => return Ok(Upgrade::keep("Kept word-synced lyrics")),
@@ -392,7 +816,7 @@ pub async fn lookup(
                 if let Some(index) = best_word_synced(&candidates) {
                     return Ok(save(candidates.swap_remove(index), "Upgraded synced lyrics to word-synced"));
                 }
-                let (hit, trouble) = word_synced_from_extra(&config, track).await;
+                let (hit, trouble) = word_synced_from_extra(&config, track, &stored_text).await;
                 if let Some(hit) = hit {
                     Upgrade::save(hit, Some("Upgraded synced lyrics to word-synced"))
                 } else if let SyncedVerdict::Better(index) = verdict {
@@ -452,7 +876,11 @@ pub async fn lookup(
     if !sources.is_empty() {
         let ladder = extra::lookup(&sources, &request(track, &config), false, &config).await;
         if let Some(hit) = ladder.hit {
-            if hit.0.synced_lyrics.is_some() {
+            // The same bar as an ordinary download sets for giving up
+            // LRCLIB's plain lyrics: sound timing, and the words unmasked
+            // when uncensored lyrics are wanted.
+            let wanted = config.lyrics_edition.wanted(&track.title, &track.album_name);
+            if extra::synced_beats_plain(&hit, wanted) {
                 return Ok(Upgrade::save(hit, Some("Upgraded plain lyrics to synced")));
             }
         }
@@ -573,6 +1001,327 @@ mod tests {
             release_date: None,
             duration: None,
         }
+    }
+
+    /// A word-synced lyricsfile and the answer an extra source would give
+    /// for it, one line per `(start, text)`.
+    fn word_synced(lines: &[(i64, &str)]) -> (String, RawResponse) {
+        use crate::local_db::word_sync::lyricsfile::{build, to_response, Line, Word};
+        let lines: Vec<Line> = lines
+            .iter()
+            .map(|(start, text)| {
+                let words = text
+                    .split(' ')
+                    .enumerate()
+                    .map(|(index, word)| Word {
+                        text: format!("{word} "),
+                        start_ms: start + index as i64 * 100,
+                        end_ms: Some(start + index as i64 * 100 + 90),
+                    })
+                    .collect();
+                Line::from_words(*start, None, words)
+            })
+            .collect();
+        let candidate = extra::Candidate {
+            id: "1".into(),
+            name: "Wrath".into(),
+            artist_name: "Lorna Shore".into(),
+            album_name: Some("Pain Remains".into()),
+            duration: 280.0,
+            edition: None,
+        };
+        let file = build(
+            &LyricsfileTrackMetadata::new("Wrath", "Pain Remains", "Lorna Shore", 280.0),
+            &lines,
+        )
+        .unwrap();
+        (file, to_response(&lines, &candidate).unwrap())
+    }
+
+    const VERSE: &[(i64, &str)] = &[
+        (5_000, "the first line of the verse"),
+        (9_000, "the second line of the verse"),
+        (13_000, "the third line of the verse"),
+        (17_000, "the fourth line of the verse"),
+        (21_000, "the fifth line of the verse"),
+    ];
+
+    fn verse_lrc() -> String {
+        VERSE
+            .iter()
+            .map(|(at, text)| format!("[00:{:02}.00] {text}", at / 1000))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn extra_note(timing: Option<extra::TimingDoubt>, plain: bool) -> Option<LookupNote> {
+        Some(LookupNote::Extra(extra::ExtraNote {
+            source: extra::ExtraSource::Netease,
+            rule: MatchRule::FullArtist,
+            album_matched: true,
+            plain,
+            word_synced: !plain,
+            masked: false,
+            timing,
+        }))
+    }
+
+    #[test]
+    fn stored_word_synced_lyrics_with_leaked_credits_and_a_blanked_word_are_recognized() {
+        // What an extra source's answer left behind before its filters
+        // caught it: the credits and the first sung line on one stamp, and a
+        // word blanked out whole.
+        let (file, _) = word_synced(&[
+            (0, "作词 : Someone"),
+            (0, "作曲 : Someone"),
+            (0, "(hey man, where the **** is he)"),
+            (5_670, "the second line of the verse"),
+            (9_090, "the third line of the verse"),
+        ]);
+        let track = track_with(Some(file));
+        assert_eq!(stored(&track), Stored::WordSynced);
+        assert!(stored_masked(&track), "so the uncensored lookup runs again for it");
+        assert_eq!(stored_damage(&track), Some(Damage::Credits));
+
+        let (clean, _) = word_synced(VERSE);
+        assert_eq!(stored_damage(&track_with(Some(clean))), None);
+        assert_eq!(stored_damage(&track_with(file_of(None, Some(&verse_lrc())))), None);
+        assert_eq!(
+            stored_damage(&track_with(file_of(None, Some(&crate::local_db::content::burst_sample())))),
+            Some(Damage::Rushed)
+        );
+        assert_eq!(stored_damage(&track_with(file_of(Some("Lyrics by: X\nwords"), None))), Some(Damage::Credits));
+        assert_eq!(stored_damage(&track_with(None)), None);
+    }
+
+    fn file_of(plain: Option<&str>, synced: Option<&str>) -> Option<String> {
+        file(plain, synced)
+    }
+
+    #[test]
+    fn word_timings_replace_stored_lyrics_only_as_the_same_lyrics_timed_alike() {
+        let stored = verse_lrc();
+        let same = || word_synced(VERSE).1;
+        let hit = |response: RawResponse, timing| (response, extra_note(timing, false));
+        assert!(word_sync_improves(&stored, &hit(same(), None), Edition::Explicit));
+        assert!(
+            !word_sync_improves(&stored, &hit(same(), Some(extra::TimingDoubt::StopsEarly)), Edition::Explicit),
+            "a doubt on the timing"
+        );
+
+        let shifted: Vec<(i64, &str)> = VERSE.iter().map(|(at, text)| (at + 5_000, *text)).collect();
+        assert!(
+            !word_sync_improves(&stored, &hit(word_synced(&shifted).1, None), Edition::Explicit),
+            "timed for another cut"
+        );
+        let other: Vec<(i64, &str)> = VERSE.iter().map(|(at, _)| (*at, "other words entirely here")).collect();
+        assert!(
+            !word_sync_improves(&stored, &hit(word_synced(&other).1, None), Edition::Explicit),
+            "another transcription"
+        );
+
+        let mut masked: Vec<(i64, &str)> = VERSE.to_vec();
+        masked.push((25_000, "where the **** is he now"));
+        let masked_lines = masked;
+        let masked = || word_synced(&masked_lines).1;
+        assert!(!word_sync_improves(&stored, &hit(masked(), None), Edition::Explicit));
+        assert!(word_sync_improves(&stored, &hit(masked(), None), Edition::Clean));
+
+        let line_synced = response(Some("words"), Some(&stored));
+        assert!(!word_sync_improves(&stored, &(line_synced, None), Edition::Explicit), "no word timings");
+    }
+
+    #[test]
+    fn damaged_lyrics_give_way_only_to_an_answer_free_of_the_damage() {
+        let even = response(Some("words"), Some(&verse_lrc()));
+        let plain = response(Some("the words alone"), None);
+        let credited = response(None, Some(&format!("[00:00.00] 作词 : X\n{}", verse_lrc())));
+        let burst = response(None, Some(&crate::local_db::content::burst_sample()));
+
+        assert!(repairs(Damage::Credits, Stored::WordSynced, &even, None));
+        assert!(!repairs(Damage::Credits, Stored::WordSynced, &plain, None), "the timing is never lost to credits");
+        assert!(repairs(Damage::Credits, Stored::Plain, &plain, None));
+        assert!(!repairs(Damage::Credits, Stored::Synced, &credited, None));
+        assert!(!repairs(Damage::Credits, Stored::Synced, &burst, None));
+
+        assert!(repairs(Damage::Rushed, Stored::Synced, &even, None));
+        assert!(!repairs(Damage::Rushed, Stored::Synced, &burst, None));
+        assert!(!repairs(Damage::Rushed, Stored::Synced, &plain, None), "plain text from anywhere is no repair");
+        let refused = extra_note(Some(extra::TimingDoubt::Rushed), true);
+        assert!(
+            repairs(Damage::Rushed, Stored::Synced, &plain, refused.as_ref()),
+            "the source's own words, its timing refused, are what a download saves now"
+        );
+        assert!(!repairs(
+            Damage::Rushed,
+            Stored::Synced,
+            &RawResponse { instrumental: true, ..response(None, None) },
+            None
+        ));
+    }
+
+    #[test]
+    fn a_failed_repair_lookup_is_tried_again_unless_it_was_an_honest_miss() {
+        let credits = Some(Damage::Credits);
+        assert_eq!(after_failed_repair(false, credits, true, false), FailedRepair::GoOn, "nothing to mend it with");
+        assert_eq!(after_failed_repair(true, credits, true, false), FailedRepair::Keep(MASKED_KEPT));
+        assert_eq!(
+            after_failed_repair(false, credits, false, false),
+            FailedRepair::Unsettled(Damage::Credits.kept()),
+            "a source in trouble may answer next time"
+        );
+        assert_eq!(
+            after_failed_repair(false, Some(Damage::Rushed), false, false),
+            FailedRepair::Unsettled(Damage::Rushed.kept())
+        );
+        assert_eq!(after_failed_repair(true, credits, false, false), FailedRepair::Unsettled(MASKED_KEPT));
+        assert_eq!(after_failed_repair(false, credits, false, true), FailedRepair::Outage);
+        assert_eq!(after_failed_repair(true, None, true, true), FailedRepair::Outage);
+    }
+
+    /// The default rules: credit lines cut in place, no different text.
+    const DEFAULT: RepairRules = RepairRules { replaces_text: false, keeps_word_timing: true };
+    /// Any text may replace damaged lyrics, word timings included.
+    const ANY_TEXT: RepairRules = RepairRules { replaces_text: true, keeps_word_timing: false };
+
+    #[test]
+    fn a_fresh_answer_mends_what_it_can_of_masked_and_damaged_lyrics() {
+        let clean = response(Some("words"), Some(&verse_lrc()));
+        let masked_again = response(None, Some(&format!("{}\n[00:25.00] where the **** is he now", verse_lrc())));
+        let credited = response(None, Some(&format!("[00:00.00] 作词 : X\n{}", verse_lrc())));
+        let credits = Some(Damage::Credits);
+        let fresh = |stored, masked, damage, wanted, rules, response: &RawResponse| {
+            fresh_replaces(stored, masked, damage, wanted, rules, false, response, None)
+        };
+
+        for rules in [DEFAULT, ANY_TEXT] {
+            assert_eq!(
+                fresh(Stored::WordSynced, true, credits, Edition::Explicit, rules, &clean),
+                Some("Replaced lyrics with masked words by an uncensored text"),
+                "the masked path is not a repair rule"
+            );
+        }
+        // The only source masks the words again, but without the credits.
+        assert_eq!(
+            fresh(Stored::WordSynced, true, credits, Edition::Explicit, ANY_TEXT, &masked_again),
+            Some("Replaced lyrics that opened with credit lines")
+        );
+        assert_eq!(
+            fresh(Stored::WordSynced, true, credits, Edition::Explicit, DEFAULT, &masked_again),
+            None,
+            "by default the credit lines are cut in place instead"
+        );
+        assert_eq!(fresh(Stored::WordSynced, true, None, Edition::Explicit, ANY_TEXT, &masked_again), None);
+        assert_eq!(fresh(Stored::WordSynced, false, credits, Edition::Explicit, ANY_TEXT, &credited), None);
+        assert_eq!(
+            fresh(Stored::Synced, false, Some(Damage::Rushed), Edition::Explicit, ANY_TEXT, &clean),
+            Some("Replaced lyrics timed too badly to follow")
+        );
+        assert_eq!(fresh(Stored::Synced, false, None, Edition::Explicit, ANY_TEXT, &clean), None);
+        // Unmasked stored lyrics never give up their words to lose damage.
+        assert_eq!(fresh(Stored::WordSynced, false, credits, Edition::Explicit, ANY_TEXT, &masked_again), None);
+        assert_eq!(
+            fresh(Stored::WordSynced, false, credits, Edition::Clean, ANY_TEXT, &masked_again),
+            Some("Replaced lyrics that opened with credit lines")
+        );
+    }
+
+    #[test]
+    fn repairs_by_a_different_text_follow_the_rules() {
+        let line_synced = response(Some("words"), Some(&verse_lrc()));
+        let (_, word_synced_answer) = word_synced(VERSE);
+        let credits = Some(Damage::Credits);
+        let rushed = Some(Damage::Rushed);
+        let fresh = |stored, damage, rules, own_text, response: &RawResponse| {
+            fresh_replaces(stored, false, damage, Edition::Explicit, rules, own_text, response, None)
+        };
+        let keep_words = RepairRules { replaces_text: true, keeps_word_timing: true };
+
+        // Credits: a different text only when the rules allow it, and then
+        // word timings only for word timings unless the rules trade them.
+        assert_eq!(fresh(Stored::Synced, credits, DEFAULT, true, &line_synced), None);
+        assert!(fresh(Stored::Synced, credits, keep_words, false, &line_synced).is_some());
+        assert_eq!(fresh(Stored::WordSynced, credits, keep_words, false, &line_synced), None);
+        assert!(fresh(Stored::WordSynced, credits, keep_words, false, &word_synced_answer).is_some());
+        assert!(fresh(Stored::WordSynced, credits, ANY_TEXT, false, &line_synced).is_some());
+
+        // Timing in bursts: by default only the lyrics' own text mends it.
+        assert_eq!(fresh(Stored::Synced, rushed, DEFAULT, false, &line_synced), None);
+        assert!(fresh(Stored::Synced, rushed, DEFAULT, true, &line_synced).is_some());
+        assert!(fresh(Stored::Synced, rushed, ANY_TEXT, false, &line_synced).is_some());
+    }
+
+    #[test]
+    fn the_same_words_are_recognized_whatever_their_timing() {
+        let burst = crate::local_db::content::burst_sample();
+        let words_only = crate::utils::strip_timestamp(&burst);
+        assert!(same_words(&burst, &response(Some(&words_only), None)), "the refused answer, saved as plain");
+        assert!(same_words(&burst, &response(None, Some(&burst))));
+        assert!(!same_words(&burst, &response(Some("other words entirely"), None)));
+        assert!(!same_words("", &response(Some(""), None)), "nothing is not the same words");
+
+        // Stored before today's filters: a closing credit and a header line
+        // the fresh answer no longer has.
+        let verse = (0..20)
+            .map(|line| format!("[{:02}:{:02}.00] the sung line number {line}", line * 9 / 60, line * 9 % 60))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let stored = format!("[00:00.50] Song - Band\n{verse}\n[03:30.00] Mixed by: Someone");
+        assert!(same_words(&stored, &response(Some(&crate::utils::strip_timestamp(&verse)), None)));
+        assert!(same_words(&verse, &response(None, Some(&stored))), "either side may have the extra lines");
+        // One line changed is another text, an edit perhaps.
+        let edited = verse.replace("number 3", "number three, my own");
+        assert!(!same_words(&edited, &response(None, Some(&verse))));
+        // Half the song is not the same lyrics.
+        let half: String = verse.lines().take(10).collect::<Vec<_>>().join("\n");
+        assert!(!same_words(&verse, &response(None, Some(&half))));
+    }
+
+    #[test]
+    fn credit_lines_are_cut_in_place_keeping_the_word_timings() {
+        let (file, _) = word_synced(&[
+            (0, "作词 : Someone"),
+            (0, "作曲 : Someone"),
+            (0, "编曲 : Someone"),
+            (0, "the first line of the verse"),
+            (5_670, "the second line of the verse"),
+        ]);
+        let file = file.replacen("version:", "custom_field: kept\nversion:", 1);
+        let cut = without_credits(&file).expect("credits cut");
+        assert!(cut.contains("custom_field: kept"), "fields Lavender does not know survive");
+        let track = track_with(Some(cut.clone()));
+        assert_eq!(stored_damage(&track), None, "not flagged again on the next run");
+        assert_eq!(stored(&track), Stored::WordSynced, "the word timings are kept");
+        let synced = stored_synced(&track).unwrap();
+        assert!(synced.starts_with("[00:00.00] the first line"), "{synced}");
+        assert_eq!(without_credits(&cut), None, "nothing left to cut");
+
+        let plain = file_of(Some("Lyrics by: X\nwords of the song"), None).unwrap();
+        let cut = without_credits(&plain).unwrap();
+        assert_eq!(stored_plain(&track_with(Some(cut))).as_deref(), Some("words of the song"));
+
+        let only_credits = file_of(Some("Lyrics by: X\nMusic by: Y"), None).unwrap();
+        assert_eq!(without_credits(&only_credits), None, "nothing would be left");
+    }
+
+    #[test]
+    fn a_database_copy_with_its_credits_cut_still_matches_its_row() {
+        let row = format!("[00:00.00] 作词 : X\n{}", verse_lrc());
+        assert!(same_lines(&verse_lrc(), &row));
+        assert!(same_lines(&row, &row));
+        assert!(!same_lines(&verse_lrc(), "[00:00.00] 作词 : X\n[00:05.00] other words"));
+    }
+
+    #[test]
+    fn repair_rules_that_allow_more_are_tokens_of_the_upgrade_memory() {
+        let config = ForkConfig::default();
+        assert_eq!(upgrade_tokens(&config), extra::tokens(&config));
+        let replaces = ForkConfig { repair_replaces_text: true, ..config.clone() };
+        assert_eq!(upgrade_tokens(&replaces), format!("{},repair-replaces-text", extra::tokens(&config)));
+        let trades = ForkConfig { repair_keeps_word_timing: false, ..replaces.clone() };
+        assert!(upgrade_tokens(&trades).ends_with("repair-replaces-text,trade-word-timing"));
+        let inactive = ForkConfig { repair_keeps_word_timing: false, ..config };
+        assert!(!upgrade_tokens(&inactive).contains("trade-word-timing"), "only active with a different text allowed");
     }
 
     #[test]

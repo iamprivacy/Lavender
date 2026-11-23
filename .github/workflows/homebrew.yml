@@ -7,8 +7,10 @@
 # Contents read and write on the tap repo only (see RELEASING.md). Without it
 # the job skips with a warning and the release itself is unaffected.
 #
-# release.yml leaves its release as a draft; publishing it by hand fires the
-# "published" event. A manual run updates the cask for any published tag.
+# release.yml publishes its release itself and then starts this workflow by
+# hand (a release published with GITHUB_TOKEN fires no "published" event);
+# publishing a draft by hand fires the event. A manual run updates the cask
+# for any published tag.
 name: Homebrew
 
 on:

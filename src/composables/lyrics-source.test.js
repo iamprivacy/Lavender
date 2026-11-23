@@ -64,6 +64,9 @@ describe('useLyricsSource', () => {
     expect(source.forkConfig.value.extraNetease).toBe(false)
     expect(source.forkConfig.value.extraQq).toBe(false)
     expect(source.forkConfig.value.extraPlainLyrics).toBe(false)
+    expect(source.forkConfig.value.extraRefusedWords).toBe(true)
+    expect(source.forkConfig.value.repairReplacesText).toBe(false)
+    expect(source.forkConfig.value.repairKeepsWordTiming).toBe(true)
     expect(source.forkConfig.value.exportWordTimestamps).toBe(false)
     expect(source.forkConfig.value.lyricsEdition).toBe('follow-file')
 
