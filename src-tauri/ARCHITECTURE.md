@@ -1088,3 +1088,43 @@ app's own database and a worker task on the Rust side.
 - **Tests:** `cargo test download_run` (the tables, the summary, the
   interrupted marking, requeueing, clearing, `classify_answer`, `is_outage`).
   The worker itself needs a Tauri app and is exercised by hand.
+
+## Lavender: headless lyrics worker (`local_db/waves_worker.rs`)
+
+Fork addition. Another app on the same computer (the Waves music app) can
+ask Lavender for lyrics without opening it: `Lavender --waves-lyrics-worker`
+skips the Tauri builder (a check at the top of `main`) and answers requests
+as JSON lines on stdin and stdout until stdin closes. Nothing is bundled:
+the other app finds the installed Lavender and starts it.
+
+- **Settings**: read before every request from `<app_data_dir>/db.sqlite3`
+  (`data_dir`: the per-platform folder Tauri uses, named after the app
+  identifier; `LAVENDER_DATA_DIR` overrides it), opened read-only with no
+  migrations, so an open app or one of another version is left alone. The
+  fork settings come from `fork_config`, the online instance from
+  `config_data.lrclib_instance`; anything unreadable falls back to the
+  defaults (Online, `https://lrclib.net`). A change saved in the app
+  applies to the next request. `remember_setting` is called each time, so
+  word timestamps follow the setting.
+- **Lookup**: `HeadlessHost` implements `source::Host` without the app. It
+  keeps its own handle on the local database (reopened when the path
+  changes, dropped when the file goes away, like `local_db::with_db`) and
+  keeps the "database unavailable" warning for the reply instead of a
+  toast. `answer` runs exactly what `download_track` runs for a track:
+  `source::get_raw_noted`, then `extra::after_lrclib` (which takes any
+  `Host` for this), and reads the result the way
+  `resolve_lrclib_lyrics_payload` does. The worker writes nothing: no
+  not-found memory, no library rows, no files.
+- **Protocol** (`PROTOCOL` = 1): the first line is
+  `{"protocol":1,"app":"Lavender","version":"x.y.z"}`. A request is
+  `{"id","title","artist","album","album_artist","duration"}`. A reply has
+  the request's `id`, `status` (`found`, `not_found`, `error`), `synced`,
+  `plain`, `instrumental`, `word_synced`, `synced_enhanced` (only with
+  word timestamps on and words present), `note` (how a tolerant or extra
+  match was made), `error` and `warning` as kind codes only
+  (`local_db_not_configured`, `local_db_unavailable`, `source_trouble`,
+  `lookup_failed`, `bad_request`), and `settings` (`lavender` when the
+  app's settings were read, else `default`). Error texts name paths, so
+  they never leave the worker. Requests are answered one at a time.
+- **Windows**: the binary is a GUI-subsystem program, which still inherits
+  the pipes its parent hands it, so the protocol works there unchanged.

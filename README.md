@@ -187,6 +187,10 @@ in online mode too.
   release only after its signed checksums match. Every release also ships a
   signed `SHA256SUMS` file.
 - Its own lavender look and icon, so the two apps are easy to tell apart.
+- The [Waves](https://getwaves.dev) music app can ask an installed Lavender
+  for lyrics while it downloads (its **Ask Lavender first** setting), so your
+  Lavender settings pick them. Lavender opens no window for this and changes
+  nothing in your library.
 
 ## Download
 

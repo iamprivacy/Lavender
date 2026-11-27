@@ -19,6 +19,13 @@
   <url type="bugtracker">https://github.com/iamprivacy/Lavender/issues</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.5" date="2026-11-26">
+      <description>
+        <ul>
+          <li>The Waves music app can ask an installed Lavender for lyrics, using your Lavender settings, without opening a window or changing your library</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.4" date="2026-11-22">
       <description>
         <ul>

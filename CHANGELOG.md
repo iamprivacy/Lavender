@@ -25,6 +25,20 @@ A bullet that closes a reported issue names it in full and links to it:
 `(#11)`. These notes are read outside the repo, where a bare number is neither
 a link nor obviously an issue. A test enforces it.
 
+## 🗂️ v0.1.5 (2026-11-26)
+
+<p align="center">
+  <strong>💜 If you enjoy Lavender, a star on this repo goes a long way, and if you'd like to help me afford to keep developing it, consider donating.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/iamprivacy"><img src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
+### ✨ Added
+
+- 🌊 The [Waves](https://getwaves.dev) music app can ask an installed Lavender for lyrics while it downloads, so your Lavender settings (local database, tolerant matching, extra sources) pick them. Lavender opens no window for this, changes nothing in your library, and answers whether or not its own window is open.
+
 ## 🗂️ v0.1.4 (2026-11-22)
 
 <p align="center">

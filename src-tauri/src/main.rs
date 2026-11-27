@@ -1925,6 +1925,10 @@ async fn segment_words(text: String) -> Result<Vec<String>, String> {
 
 #[tokio::main]
 async fn main() {
+    // Fork: the headless lyrics worker for other apps (see local_db/waves_worker.rs).
+    if local_db::waves_worker::requested() {
+        std::process::exit(local_db::waves_worker::run().await);
+    }
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())

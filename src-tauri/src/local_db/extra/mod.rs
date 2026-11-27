@@ -38,8 +38,6 @@ use std::pin::Pin;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use tauri::AppHandle;
-
 use super::attempts::{classify, Outcome};
 use super::config::{ForkConfig, LyricsSource};
 use super::content::Timing;
@@ -627,7 +625,7 @@ pub struct SourceTrouble {
 /// miss leaves the LRCLIB not-found in place; a miss with a source in trouble
 /// becomes a `SourceTrouble` that says which and why.
 pub async fn after_lrclib(
-    app: &AppHandle,
+    app: &impl Host,
     track: &PersistentTrack,
     outcome: anyhow::Result<(RawResponse, Option<MatchNote>)>,
 ) -> LookupOutcome {

@@ -28,6 +28,7 @@ pub mod source;
 pub mod tolerant;
 pub mod update;
 pub mod upgrade;
+pub mod waves_worker;
 pub mod word_sync;
 #[cfg(test)]
 pub mod test_support;
@@ -474,7 +475,7 @@ pub fn with_db<T>(
 
 /// SQLite error texts that mean the file went away under us (drive unplugged,
 /// file deleted or replaced), as opposed to a bad query.
-fn is_connection_lost(message: &str) -> bool {
+pub(crate) fn is_connection_lost(message: &str) -> bool {
     let lower = message.to_lowercase();
     lower.contains("disk i/o error")
         || lower.contains("unable to open database")
@@ -685,7 +686,12 @@ mod tests {
         let direct = ["config::get)", "config::get(", "config::set(", "config::save("];
         for file in files {
             let name = file.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/");
-            if name == "local_db/config.rs" || name == "local_db/mod.rs" {
+            // The headless worker is its own process, without the app's
+            // cache: it reads the settings afresh for every request.
+            if name == "local_db/config.rs"
+                || name == "local_db/mod.rs"
+                || name == "local_db/waves_worker.rs"
+            {
                 continue;
             }
             let text = std::fs::read_to_string(&file).unwrap();
